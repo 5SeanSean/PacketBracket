@@ -687,7 +687,15 @@ displayScore(emailElement, analysis) {
     const scoreElement = document.createElement('div');
     scoreElement.className = `phishing-score ${analysis.level}`;
     scoreElement.textContent = `${analysis.score}%`;
+    scoreElement.title = `Risk Level: ${analysis.level.toUpperCase()}\nClick for details`;
     
+    // Add click handler for detailed tooltip
+    scoreElement.addEventListener('click', (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      this.showTooltip(e, analysis);
+    });
+
     // Add to email container
     const container = this.findEmailPreviewContainer(emailElement);
     container.appendChild(scoreElement);
@@ -697,16 +705,32 @@ displayScore(emailElement, analysis) {
   }
 }
 
- findEmailPreviewContainer(emailElement) {
+findEmailPreviewContainer(emailElement) {
   try {
-    // Look for the email content container
-    const contentContainer = emailElement.querySelector('[data-testid="message-container"]');
-    if (contentContainer) return contentContainer;
+    // Try several selectors to find the email header container
+    const selectors = [
+      '.oG5yj', // New Outlook header container
+      '[data-testid="message-header"]', // Header test ID
+      '[data-testid="message-container"]', // Container test ID
+      '[role="listitem"] > div:first-child', // First child of list item
+      '.ms-List-cell > div:first-child' // First child of list cell
+    ];
 
-    // Fallback to subject container
-    const subjectContainer = emailElement.querySelector('[data-testid="message-subject"]')?.parentElement;
-    if (subjectContainer) return subjectContainer;
+    for (const selector of selectors) {
+      const container = emailElement.querySelector(selector);
+      if (container) {
+        // Ensure the container has relative positioning
+        if (window.getComputedStyle(container).position === 'static') {
+          container.style.position = 'relative';
+        }
+        return container;
+      }
+    }
 
+    // Fallback to the email element itself
+    if (window.getComputedStyle(emailElement).position === 'static') {
+      emailElement.style.position = 'relative';
+    }
     return emailElement;
   } catch (error) {
     console.error('Error finding email preview container:', error);
