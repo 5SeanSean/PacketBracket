@@ -677,94 +677,42 @@ class OutlookPhishingScanner {
     }
   }
 
-  displayScore(emailElement, analysis) {
-    try {
-      // Remove existing score if any
-      const existingScore = emailElement.querySelector('.phishing-score');
-      if (existingScore) {
-        existingScore.remove();
-      }
+displayScore(emailElement, analysis) {
+  try {
+    // Remove existing score
+    const existingScore = emailElement.querySelector('.phishing-score');
+    if (existingScore) existingScore.remove();
 
-      // Find the email preview container
-      const previewContainer = this.findEmailPreviewContainer(emailElement);
-      if (!previewContainer) {
-        console.log('Could not find email preview container');
-        return;
-      }
-
-      // Make sure the container has relative positioning
-      if (!previewContainer.classList.contains('email-preview-container')) {
-        previewContainer.classList.add('email-preview-container');
-        previewContainer.style.position = 'relative';
-      }
-
-      // Create score element
-      const scoreElement = document.createElement('div');
-      scoreElement.className = `phishing-score ${analysis.level}`;
-      scoreElement.textContent = `${analysis.score}%`;
-      scoreElement.title = `Risk Level: ${analysis.level.toUpperCase()}\nClick for details`;
-
-      // Add click handler for detailed tooltip
-      scoreElement.addEventListener('click', (e) => {
-        e.stopPropagation();
-        e.preventDefault();
-        this.showTooltip(e, analysis);
-      });
-
-      // Add the score to the preview container
-      previewContainer.appendChild(scoreElement);
-      
-      console.log(`Score displayed: ${analysis.score}% (${analysis.level}) in preview container`);
-    } catch (error) {
-      console.error('Error displaying score:', error);
-    }
+    // Create score element
+    const scoreElement = document.createElement('div');
+    scoreElement.className = `phishing-score ${analysis.level}`;
+    scoreElement.textContent = `${analysis.score}%`;
+    
+    // Add to email container
+    const container = this.findEmailPreviewContainer(emailElement);
+    container.appendChild(scoreElement);
+    
+  } catch (error) {
+    console.error('Error displaying score:', error);
   }
+}
 
-  findEmailPreviewContainer(emailElement) {
-    try {
-      // Look for the main content area of the email (where subject, preview text, etc. are)
-      const containerSelectors = [
-        // Look for the main content div
-        '.ms-List-cell > div:first-child',
-        '.ms-List-cell',
-        '[data-testid="message-list-item"] > div',
-        '[data-testid="message-list-item"]',
-        '[role="listitem"] > div',
-        '[role="listitem"]',
-        // Fallback to the email element itself
-        emailElement
-      ];
+ findEmailPreviewContainer(emailElement) {
+  try {
+    // Look for the email content container
+    const contentContainer = emailElement.querySelector('[data-testid="message-container"]');
+    if (contentContainer) return contentContainer;
 
-      for (const selector of containerSelectors) {
-        let container;
-        if (typeof selector === 'string') {
-          container = emailElement.querySelector(selector);
-        } else {
-          container = selector; // It's already an element
-        }
+    // Fallback to subject container
+    const subjectContainer = emailElement.querySelector('[data-testid="message-subject"]')?.parentElement;
+    if (subjectContainer) return subjectContainer;
 
-        if (container) {
-          // Check if this container has email content (subject, preview, etc.)
-          const hasEmailContent = container.querySelector('[data-testid="message-subject"]') ||
-                                 container.querySelector('[data-testid="message-preview"]') ||
-                                 container.querySelector('.ms-Persona-primaryText') ||
-                                 container.querySelector('[role="heading"]');
-
-          if (hasEmailContent) {
-            console.log('Found email preview container:', container);
-            return container;
-          }
-        }
-      }
-
-      // If no specific container found, use the email element itself
-      console.log('Using email element as container');
-      return emailElement;
-    } catch (error) {
-      console.error('Error finding email preview container:', error);
-      return emailElement;
-    }
+    return emailElement;
+  } catch (error) {
+    console.error('Error finding email preview container:', error);
+    return emailElement;
   }
+}
 
   showTooltip(event, analysis) {
     try {
