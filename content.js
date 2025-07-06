@@ -394,41 +394,48 @@ class OutlookPhishingScanner {
     style.textContent = `
       .phishing-score {
         display: inline-block;
-        padding: 2px 6px;
-        border-radius: 3px;
-        font-size: 11px;
-        font-weight: bold;
-        margin-left: 8px;
+        padding: 3px 8px;
+        border-radius: 12px;
+        font-size: 10px;
+        font-weight: 600;
+        margin: 2px 4px;
         cursor: pointer;
         transition: all 0.2s ease;
-        text-shadow: 0 1px 1px rgba(0,0,0,0.3);
+        text-shadow: 0 1px 1px rgba(0,0,0,0.2);
         z-index: 1000;
         position: relative;
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.3);
       }
       .phishing-score:hover {
-        transform: scale(1.1);
-        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        transform: scale(1.05);
+        box-shadow: 0 2px 6px rgba(0,0,0,0.4);
       }
       .phishing-score.high {
-        background: linear-gradient(45deg, #ff4444, #cc0000);
+        background: linear-gradient(135deg, #ff4444, #cc0000);
         color: white;
         animation: pulse-red 2s infinite;
+        border: 1px solid #ff6666;
       }
       .phishing-score.medium {
-        background: linear-gradient(45deg, #ff9944, #ff6600);
+        background: linear-gradient(135deg, #ff9944, #ff6600);
         color: white;
+        border: 1px solid #ffaa66;
       }
       .phishing-score.low {
-        background: linear-gradient(45deg, #ffdd44, #ffaa00);
-        color: black;
+        background: linear-gradient(135deg, #ffdd44, #ffaa00);
+        color: #333;
+        border: 1px solid #ffee66;
       }
       .phishing-score.safe {
-        background: linear-gradient(45deg, #44ff44, #00cc00);
-        color: black;
+        background: linear-gradient(135deg, #44ff44, #00cc00);
+        color: #333;
+        border: 1px solid #66ff66;
       }
       @keyframes pulse-red {
         0% { opacity: 1; }
-        50% { opacity: 0.7; }
+        50% { opacity: 0.8; }
         100% { opacity: 1; }
       }
       .phishing-tooltip {
@@ -460,6 +467,18 @@ class OutlookPhishingScanner {
       .phishing-tooltip strong {
         color: #e74c3c;
         font-weight: 600;
+      }
+      
+      /* Email preview container styling */
+      .email-preview-container {
+        position: relative;
+      }
+      
+      .email-preview-container .phishing-score {
+        position: absolute;
+        top: 4px;
+        right: 4px;
+        z-index: 1001;
       }
     `;
     document.head.appendChild(style);
@@ -666,54 +685,83 @@ class OutlookPhishingScanner {
         existingScore.remove();
       }
 
-      // Find the best place to insert the score
-      const insertPoint = this.findInsertPoint(emailElement);
-      if (!insertPoint) {
-        console.log('Could not find insert point for score');
+      // Find the email preview container
+      const previewContainer = this.findEmailPreviewContainer(emailElement);
+      if (!previewContainer) {
+        console.log('Could not find email preview container');
         return;
       }
 
+      // Make sure the container has relative positioning
+      if (!previewContainer.classList.contains('email-preview-container')) {
+        previewContainer.classList.add('email-preview-container');
+        previewContainer.style.position = 'relative';
+      }
+
       // Create score element
-      const scoreElement = document.createElement('span');
+      const scoreElement = document.createElement('div');
       scoreElement.className = `phishing-score ${analysis.level}`;
       scoreElement.textContent = `${analysis.score}%`;
-      scoreElement.title = analysis.reasons.join(', ');
+      scoreElement.title = `Risk Level: ${analysis.level.toUpperCase()}\nClick for details`;
 
       // Add click handler for detailed tooltip
       scoreElement.addEventListener('click', (e) => {
         e.stopPropagation();
+        e.preventDefault();
         this.showTooltip(e, analysis);
       });
 
-      // Insert the score
-      insertPoint.appendChild(scoreElement);
+      // Add the score to the preview container
+      previewContainer.appendChild(scoreElement);
       
-      console.log(`Score displayed: ${analysis.score}% (${analysis.level})`);
+      console.log(`Score displayed: ${analysis.score}% (${analysis.level}) in preview container`);
     } catch (error) {
       console.error('Error displaying score:', error);
     }
   }
 
-  findInsertPoint(emailElement) {
+  findEmailPreviewContainer(emailElement) {
     try {
-      const candidates = [
-        emailElement.querySelector('[data-testid="sender-name"]'),
-        emailElement.querySelector('.ms-Persona-primaryText'),
-        emailElement.querySelector('[data-testid="message-subject"]'),
-        emailElement.querySelector('.ms-List-cell [role="heading"]'),
-        emailElement.querySelector('.subject'),
-        emailElement.querySelector('.sender-name')
+      // Look for the main content area of the email (where subject, preview text, etc. are)
+      const containerSelectors = [
+        // Look for the main content div
+        '.ms-List-cell > div:first-child',
+        '.ms-List-cell',
+        '[data-testid="message-list-item"] > div',
+        '[data-testid="message-list-item"]',
+        '[role="listitem"] > div',
+        '[role="listitem"]',
+        // Fallback to the email element itself
+        emailElement
       ];
 
-      for (const candidate of candidates) {
-        if (candidate) {
-          return candidate.parentElement || candidate;
+      for (const selector of containerSelectors) {
+        let container;
+        if (typeof selector === 'string') {
+          container = emailElement.querySelector(selector);
+        } else {
+          container = selector; // It's already an element
+        }
+
+        if (container) {
+          // Check if this container has email content (subject, preview, etc.)
+          const hasEmailContent = container.querySelector('[data-testid="message-subject"]') ||
+                                 container.querySelector('[data-testid="message-preview"]') ||
+                                 container.querySelector('.ms-Persona-primaryText') ||
+                                 container.querySelector('[role="heading"]');
+
+          if (hasEmailContent) {
+            console.log('Found email preview container:', container);
+            return container;
+          }
         }
       }
 
+      // If no specific container found, use the email element itself
+      console.log('Using email element as container');
       return emailElement;
     } catch (error) {
-      console.error('Error finding insert point:', error);
+      console.error('Error finding email preview container:', error);
       return emailElement;
     }
   }
@@ -733,7 +781,7 @@ class OutlookPhishingScanner {
         <strong>Phishing Risk: ${analysis.level.toUpperCase()}</strong><br>
         Score: ${analysis.score}%<br><br>
         Reasons:<br>
-        ${analysis.reasons.map(reason => `• ${reason}`).join('<br>')}
+        ${analysis.reasons.length > 0 ? analysis.reasons.map(reason => `• ${reason}`).join('<br>') : '• No specific indicators found'}
       `;
 
       // Position tooltip
