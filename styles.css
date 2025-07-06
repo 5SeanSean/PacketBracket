@@ -1,0 +1,133 @@
+/* Outlook Phishing Scanner Styles */
+
+.phishing-score {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: bold;
+  margin-left: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-shadow: 0 1px 1px rgba(0,0,0,0.3);
+}
+
+.phishing-score:hover {
+  transform: scale(1.1);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.phishing-score.high {
+  background: linear-gradient(45deg, #ff4444, #cc0000);
+  color: white;
+  animation: pulse-red 2s infinite;
+}
+
+.phishing-score.medium {
+  background: linear-gradient(45deg, #ff9944, #ff6600);
+  color: white;
+}
+
+.phishing-score.low {
+  background: linear-gradient(45deg, #ffdd44, #ffaa00);
+  color: black;
+}
+
+.phishing-score.safe {
+  background: linear-gradient(45deg, #44ff44, #00cc00);
+  color: black;
+}
+
+@keyframes pulse-red {
+  0% { opacity: 1; }
+  50% { opacity: 0.7; }
+  100% { opacity: 1; }
+}
+
+.phishing-tooltip {
+  position: absolute;
+  background: linear-gradient(135deg, #2c3e50, #34495e);
+  color: white;
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  max-width: 280px;
+  z-index: 10000;
+  display: none;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255,255,255,0.1);
+  line-height: 1.4;
+}
+
+.phishing-tooltip::before {
+  content: '';
+  position: absolute;
+  top: -8px;
+  left: 20px;
+  width: 0;
+  height: 0;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-bottom: 8px solid #2c3e50;
+}
+
+.phishing-tooltip strong {
+  color: #e74c3c;
+  font-weight: 600;
+}
+
+/* Integration with different Outlook layouts */
+[data-testid="message-list-item"] .phishing-score,
+[role="listitem"][data-convid] .phishing-score,
+.ms-List-cell[data-automationid="MessageListItem"] .phishing-score {
+  margin-left: 8px;
+  vertical-align: middle;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .phishing-score {
+    font-size: 10px;
+    padding: 1px 4px;
+  }
+  
+  .phishing-tooltip {
+    font-size: 12px;
+    max-width: 220px;
+  }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .phishing-tooltip {
+    background: linear-gradient(135deg, #1a1a1a, #2d2d2d);
+    border: 1px solid rgba(255,255,255,0.2);
+  }
+  
+  .phishing-tooltip::before {
+    border-bottom-color: #1a1a1a;
+  }
+}
+
+/* Accessibility improvements */
+.phishing-score:focus {
+  outline: 2px solid #4CAF50;
+  outline-offset: 2px;
+}
+
+/* Animation for new scores */
+@keyframes scoreAppear {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.phishing-score.new {
+  animation: scoreAppear 0.3s ease-out;
+}

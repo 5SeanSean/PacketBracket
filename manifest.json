@@ -1,0 +1,42 @@
+{
+  "manifest_version": 3,
+  "name": "Outlook Phishing Scanner",
+  "version": "1.0",
+  "description": "Scans Outlook emails for phishing indicators and displays risk scores",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://outlook.live.com/*",
+    "https://outlook.office.com/*",
+    "https://outlook.office365.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://outlook.live.com/*",
+        "https://outlook.office.com/*",
+        "https://outlook.office365.com/*"
+      ],
+      "js": ["content.js"],
+      "css": ["styles.css"],
+      "run_at": "document_end"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["phishing-scanner.js"],
+      "matches": [
+        "https://outlook.live.com/*",
+        "https://outlook.office.com/*",
+        "https://outlook.office365.com/*"
+      ]
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Outlook Phishing Scanner"
+  }
+}
