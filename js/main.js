@@ -1,10 +1,20 @@
 // Global variables
-let userLocation = null;
-let currentLocations = [];
+const AppState = {
+    userLocation: null,
+    currentLocations: [],
+    // Add other shared variables here
+};
 
 // DOM loaded event
 document.addEventListener('DOMContentLoaded', function() {
     console.log('DOM loaded, initializing...');
+    if (!initGlobe()) {
+        showStatus('Failed to initialize 3D globe', 'error');
+        return;
+    }
+
+    setupClickDetection();
+    
     
     // File input event
     const fileInput = document.getElementById('fileInput');

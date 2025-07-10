@@ -43,7 +43,7 @@ async function processFile(file) {
             return;
         }
         
-        currentLocations = locations;
+        AppState.currentLocations = locations;
         
         // Update UI
         updateStats(locations);
@@ -61,4 +61,14 @@ async function processFile(file) {
         showStatus('Error processing file: ' + error.message, 'error');
         document.getElementById('loading').style.display = 'none';
     }
+    
+    // In file-processor.js, modify processFile():
+const ips = await parsePCAPNG(file);
+console.log("Raw IPs found:", ips); // Debug log
+
+if (ips.length === 0) {
+    // Before showing error, try to inspect the file
+    const filePreview = await file.text();
+    console.log("File preview:", filePreview.substring(0, 1000));
+}
 }

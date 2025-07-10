@@ -1,65 +1,51 @@
-// Parse IP addresses from PCAPNG file
 async function parsePCAPNG(file) {
-    const ips = new Set();
-    const ipPattern = /\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b/g;
-    
     try {
-        // Read file as ArrayBuffer
-        const arrayBuffer = await file.arrayBuffer();
-        const dataView = new DataView(arrayBuffer);
-        
-        // PCAPNG file header (simplified parsing)
-        // We'll scan through the file looking for IPv4 addresses
-        let position = 0;
-        const chunkSize = 4096;
-        let textDecoder = new TextDecoder();
-        
-        while (position < arrayBuffer.byteLength) {
-            const end = Math.min(position + chunkSize, arrayBuffer.byteLength);
-            const chunk = new Uint8Array(arrayBuffer, position, end - position);
-            
-            // Convert to text to find IP addresses
-            const text = textDecoder.decode(chunk);
-            const matches = text.match(ipPattern);
-            
-            if (matches) {
-                matches.forEach(ip => {
-                    if (!isPrivateIP(ip)) {
-                        ips.add(ip);
-                    }
-                });
-            }
-            
-            position = end;
-        }
-        
-        return Array.from(ips);
-    } catch (error) {
-        console.error('Error parsing PCAPNG file:', error);
-        // Fallback to text extraction
-        const text = await file.text();
-        const matches = text.match(ipPattern) || [];
-        const uniqueIPs = new Set();
-        
-        matches.forEach(ip => {
-            if (!isPrivateIP(ip)) {
-                uniqueIPs.add(ip);
+        const buffer = await file.arrayBuffer();
+        const pcap = pcapParse(buffer);
+        const ips = new Set();
+
+        // Process each packet
+        pcap.packets.forEach(packet => {
+            // Extract source and destination IPs (IPv4)
+            if (packet.payload && packet.payload.ethertype === 0x0800) { // IPv4
+                const srcIp = packet.payload.saddr;
+                const dstIp = packet.payload.daddr;
+                
+                if (!isPrivateIP(srcIp)) ips.add(srcIp);
+                if (!isPrivateIP(dstIp)) ips.add(dstIp);
             }
         });
-        
-        return Array.from(uniqueIPs);
+
+        return Array.from(ips);
+    } catch (error) {
+        console.error('PCAP parse error:', error);
+        // Fallback to text parsing if needed
+        return await fallbackTextParse(file);
     }
 }
 
-// Check if IP is private/local
+async function fallbackTextParse(file) {
+    // Keep your original text parsing as fallback
+    const ips = new Set();
+    const text = await file.text();
+    const ipPattern = /\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/g;
+    const matches = text.match(ipPattern) || [];
+    
+    matches.forEach(ip => {
+        if (!isPrivateIP(ip)) ips.add(ip);
+    });
+    
+    return Array.from(ips);
+}
+
 function isPrivateIP(ip) {
     const parts = ip.split('.').map(Number);
     return (
-        parts[0] === 10 ||
-        parts[0] === 127 ||
-        (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) ||
-        (parts[0] === 192 && parts[1] === 168) ||
-        parts[0] === 0 ||
-        parts[0] >= 224
+        parts[0] === 10 || // 10.0.0.0/8
+        (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) || // 172.16.0.0/12
+        (parts[0] === 192 && parts[1] === 168) || // 192.168.0.0/16
+        parts[0] === 127 || // Loopback
+        parts[0] === 0 || // Invalid
+        parts[0] >= 224 // Multicast
     );
 }

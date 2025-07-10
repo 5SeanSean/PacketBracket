@@ -69,7 +69,7 @@ function addIPMarkersToGlobe(locations) {
     });
     
     // Add user marker if available
-    if (userLocation) {
+    if (AppState.userLocation) {
         addUserMarkerToGlobe();
     }
 }
