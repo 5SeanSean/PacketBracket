@@ -1,0 +1,1432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wireshark TCP 3D Earth Visualizer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #16213e 100%);
+            min-height: 100vh;
+            color: #fff;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .header h1 {
+            color: #64ffda;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 0 0 20px rgba(100, 255, 218, 0.3);
+        }
+
+        .header p {
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 1.1em;
+        }
+
+        .upload-section {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 30px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .file-input-wrapper {
+            position: relative;
+            display: inline-block;
+            cursor: pointer;
+            width: 100%;
+        }
+
+        .file-input {
+            position: absolute;
+            opacity: 0;
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+        }
+
+        .file-input-button {
+            display: block;
+            padding: 20px 40px;
+            background: linear-gradient(135deg, #64ffda 0%, #1de9b6 100%);
+            color: #0a0a0a;
+            border: none;
+            border-radius: 10px;
+            font-size: 1.1em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: center;
+            width: 100%;
+        }
+
+        .file-input-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(100, 255, 218, 0.3);
+        }
+
+        .status {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        .status.success {
+            background: rgba(76, 175, 80, 0.2);
+            color: #4caf50;
+            border: 1px solid #4caf50;
+        }
+
+        .status.error {
+            background: rgba(244, 67, 54, 0.2);
+            color: #f44336;
+            border: 1px solid #f44336;
+        }
+
+        .status.processing {
+            background: rgba(255, 193, 7, 0.2);
+            color: #ffc107;
+            border: 1px solid #ffc107;
+        }
+
+        .globe-container {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 30px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            position: relative;
+        }
+
+        .globe-container h3 {
+            color: #64ffda;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        #globe {
+            width: 100%;
+            height: 600px;
+            border-radius: 10px;
+            background: radial-gradient(circle, #0a0a0a 0%, #000000 100%);
+        }
+
+        .controls {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 10px;
+            color: white;
+            font-size: 0.9em;
+        }
+
+        .controls h4 {
+            color: #64ffda;
+            margin-bottom: 10px;
+        }
+
+        .controls p {
+            margin: 5px 0;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 20px;
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            transition: transform 0.3s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 35px rgba(100, 255, 218, 0.2);
+        }
+
+        .stat-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #64ffda;
+            margin-bottom: 10px;
+            text-shadow: 0 0 10px rgba(100, 255, 218, 0.3);
+        }
+
+        .stat-label {
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 0.9em;
+        }
+
+        .connection-list {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 20px;
+            margin-top: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .connection-list h3 {
+            color: #64ffda;
+            margin-bottom: 15px;
+        }
+
+        .connection-item {
+            padding: 15px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background 0.3s ease;
+        }
+
+        .connection-item:hover {
+            background: rgba(100, 255, 218, 0.1);
+        }
+
+        .connection-item:last-child {
+            border-bottom: none;
+        }
+
+        .connection-ip {
+            font-weight: bold;
+            color: #64ffda;
+        }
+
+        .connection-location {
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 0.9em;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top: 4px solid #64ffda;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .legend {
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 10px;
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            color: white;
+            font-size: 0.9em;
+        }
+
+        .legend h4 {
+            color: #64ffda;
+            margin-bottom: 10px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 5px 0;
+        }
+
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 10px;
+        }
+
+        .legend-color.ip {
+            background: #64ffda;
+            box-shadow: 0 0 10px #64ffda;
+        }
+        
+        .legend-color.user {
+            background: #ff5252;
+            box-shadow: 0 0 10px #ff5252;
+        }
+        
+        .legend-color.connection {
+            background: #ff7b54;
+            box-shadow: 0 0 10px #ff7b54;
+        }
+        
+        .location-request {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 30px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            text-align: center;
+        }
+        
+        .location-button {
+            padding: 15px 30px;
+            background: linear-gradient(135deg, #ff5252 0%, #ff1744 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 1.1em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 15px;
+        }
+        
+        .location-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(255, 82, 82, 0.3);
+        }
+        
+        .tabs {
+            display: flex;
+            margin-bottom: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        
+        .tab {
+            flex: 1;
+            padding: 15px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .tab.active {
+            background: rgba(100, 255, 218, 0.2);
+            color: #64ffda;
+        }
+        
+        .tab:hover:not(.active) {
+            background: rgba(255, 255, 255, 0.05);
+        }
+        
+        .globe-notice {
+            text-align: center;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            margin-top: 20px;
+            border-left: 4px solid #64ffda;
+        }
+        
+        .texture-status {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px 15px;
+            border-radius: 8px;
+            color: #64ffda;
+            font-size: 0.9em;
+            display: none;
+        }
+        
+        .file-info {
+            margin-top: 15px;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 8px;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🌍 Wireshark TCP 3D Earth Visualizer</h1>
+            <p>Upload your Wireshark PCAPNG file to visualize network connections on a photorealistic 3D Earth</p>
+        </div>
+        
+        <div class="tabs">
+            <div class="tab active" id="globeTab">Globe View</div>
+            <div class="tab" id="connectionsTab">Connection Details</div>
+        </div>
+        
+        <div class="location-request">
+            <p>To show your location on the globe, please allow location access</p>
+            <button class="location-button" id="locationButton">📍 Enable My Location</button>
+            <p id="locationStatus" style="margin-top: 15px; color: #64ffda; display: none;">Location enabled! Your position will appear on the globe</p>
+        </div>
+
+        <div class="upload-section">
+            <div class="file-input-wrapper">
+                <input type="file" id="fileInput" class="file-input" accept=".pcapng,.pcap" />
+                <div class="file-input-button">
+                    📁 Choose PCAPNG File
+                </div>
+            </div>
+            <div id="fileInfo" class="file-info" style="display: none;"></div>
+            <div id="status" class="status" style="display: none;"></div>
+        </div>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>Processing file and looking up IP locations...</p>
+        </div>
+
+        <div class="globe-container" id="globeContainer" style="display: none;">
+            <h3>Interactive Network Connections Globe</h3>
+            <div id="globe"></div>
+            <div class="texture-status" id="textureStatus">Loading Earth textures...</div>
+            
+            <div class="controls">
+                <h4>Controls</h4>
+                <p>🖱️ Left Click + Drag: Rotate</p>
+                <p>🖱️ Right Click + Drag: Pan</p>
+                <p>⚙️ Scroll: Zoom</p>
+                <p>📍 Click IP: Show Details</p>
+            </div>
+            
+            <div class="legend">
+                <h4>Legend</h4>
+                <div class="legend-item">
+                    <div class="legend-color ip"></div>
+                    <span>IP Address Location</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color user"></div>
+                    <span>Your Location</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color connection"></div>
+                    <span>Network Connection</span>
+                </div>
+            </div>
+            
+            <div class="globe-notice">
+                <p>Photorealistic Earth visualization with actual IP geolocation</p>
+            </div>
+        </div>
+
+        <div class="stats" id="stats" style="display: none;">
+            <div class="stat-card">
+                <div class="stat-value" id="totalConnections">0</div>
+                <div class="stat-label">Total Connections</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="uniqueIPs">0</div>
+                <div class="stat-label">Unique IPs</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="countries">0</div>
+                <div class="stat-label">Countries</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="cities">0</div>
+                <div class="stat-label">Cities</div>
+            </div>
+        </div>
+
+        <div class="connection-list" id="connectionList" style="display: none;">
+            <h3>Connection Details</h3>
+            <div id="connections"></div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        let scene, camera, renderer, globe, controls;
+        let ipMarkers = [];
+        let animationId;
+        let userLocation = null;
+        let userMarker = null;
+        let connectionArcs = [];
+        let currentLocations = [];
+        let textureLoader;
+        let globeGroup;
+        let pcapParser;
+        
+        // Initialize the 3D globe
+        function initGlobe() {
+            console.log('Initializing 3D globe, THREE object:', typeof THREE);
+            
+            if (typeof THREE === 'undefined') {
+                console.error('Three.js library not loaded!');
+                showStatus('3D library failed to load. Please refresh the page.', 'error');
+                return false;
+            }
+
+            try {
+                const container = document.getElementById('globe');
+                const width = container.clientWidth;
+                const height = container.clientHeight;
+
+                // Show texture loading status
+                document.getElementById('textureStatus').style.display = 'block';
+
+                // Create scene
+                scene = new THREE.Scene();
+                scene.background = new THREE.Color(0x000000);
+
+                // Create camera
+                camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
+                camera.position.set(0, 0, 3);
+
+                // Create renderer
+                renderer = new THREE.WebGLRenderer({ antialias: true });
+                renderer.setSize(width, height);
+                renderer.shadowMap.enabled = true;
+                renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+                container.appendChild(renderer.domElement);
+
+                // Create a group for the globe and its children
+                globeGroup = new THREE.Group();
+                scene.add(globeGroup);
+
+                // Create Earth geometry
+                const earthGeometry = new THREE.SphereGeometry(1, 64, 64);
+                
+                // Load Earth textures
+                textureLoader = new THREE.TextureLoader();
+                
+                // Use reliable textures
+                const earthTexture = textureLoader.load(
+                    'https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg',
+                    () => updateTextureStatus('Earth texture loaded'),
+                    () => updateTextureStatus('Error loading Earth texture', true)
+                );
+                
+                const earthBump = textureLoader.load(
+                    'https://threejs.org/examples/textures/planets/earth_normal_2048.jpg',
+                    () => updateTextureStatus('Bump map loaded'),
+                    () => updateTextureStatus('Error loading bump map', true)
+                );
+                
+                const earthSpecular = textureLoader.load(
+                    'https://threejs.org/examples/textures/planets/earth_specular_2048.jpg',
+                    () => updateTextureStatus('Specular map loaded'),
+                    () => updateTextureStatus('Error loading specular map', true)
+                );
+                
+                // Create Earth material with realistic textures
+                const earthMaterial = new THREE.MeshPhongMaterial({
+                    map: earthTexture,
+                    bumpMap: earthBump,
+                    bumpScale: 0.05,
+                    specularMap: earthSpecular,
+                    specular: new THREE.Color('grey'),
+                    shininess: 5
+                });
+
+                // Create Earth mesh
+                globe = new THREE.Mesh(earthGeometry, earthMaterial);
+                globe.castShadow = true;
+                globe.receiveShadow = true;
+                globeGroup.add(globe);
+
+                // Add clouds layer
+                const cloudsGeometry = new THREE.SphereGeometry(1.01, 64, 64);
+                const cloudsTexture = textureLoader.load(
+                    'https://threejs.org/examples/textures/planets/earth_clouds_2048.png',
+                    () => updateTextureStatus('Clouds texture loaded'),
+                    () => updateTextureStatus('Error loading clouds texture', true)
+                );
+                
+                const cloudsMaterial = new THREE.MeshPhongMaterial({
+                    map: cloudsTexture,
+                    transparent: true,
+                    opacity: 0.8
+                });
+                const clouds = new THREE.Mesh(cloudsGeometry, cloudsMaterial);
+                globeGroup.add(clouds);
+
+                // Add atmosphere glow
+                const atmosphereGeometry = new THREE.SphereGeometry(1.05, 64, 64);
+                const atmosphereMaterial = new THREE.MeshPhongMaterial({
+                    color: 0x64ffda,
+                    transparent: true,
+                    opacity: 0.15,
+                    side: THREE.BackSide
+                });
+                const atmosphere = new THREE.Mesh(atmosphereGeometry, atmosphereMaterial);
+                globeGroup.add(atmosphere);
+
+                // Add lights
+                const ambientLight = new THREE.AmbientLight(0x404040, 0.4);
+                scene.add(ambientLight);
+
+                const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+                directionalLight.position.set(5, 3, 5);
+                directionalLight.castShadow = true;
+                scene.add(directionalLight);
+
+                // Add point light for dramatic effect
+                const pointLight = new THREE.PointLight(0x64ffda, 0.5, 100);
+                pointLight.position.set(0, 0, 5);
+                scene.add(pointLight);
+
+                // Add stars
+                addStars();
+
+                // Add mouse controls
+                addMouseControls();
+
+                // Handle window resize
+                window.addEventListener('resize', onWindowResize);
+
+                // Start animation loop
+                animate();
+
+                console.log('3D globe initialized successfully');
+                return true;
+
+            } catch (error) {
+                console.error('Error initializing 3D globe:', error);
+                showStatus('Failed to initialize 3D globe: ' + error.message, 'error');
+                return false;
+            }
+        }
+
+        // Update texture loading status
+        function updateTextureStatus(message, isError = false) {
+            const statusEl = document.getElementById('textureStatus');
+            statusEl.textContent = message;
+            
+            if (isError) {
+                statusEl.style.color = '#ff5252';
+            } else {
+                statusEl.style.color = '#64ffda';
+            }
+            
+            // Hide status after a delay
+            setTimeout(() => {
+                statusEl.style.display = 'none';
+            }, 3000);
+        }
+
+        // Add stars background
+        function addStars() {
+            const starsGeometry = new THREE.BufferGeometry();
+            const starsMaterial = new THREE.PointsMaterial({ color: 0xffffff, size: 0.5 });
+
+            const starsVertices = [];
+            for (let i = 0; i < 10000; i++) {
+                const x = (Math.random() - 0.5) * 2000;
+                const y = (Math.random() - 0.5) * 2000;
+                const z = (Math.random() - 0.5) * 2000;
+                starsVertices.push(x, y, z);
+            }
+
+            starsGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starsVertices, 3));
+            const stars = new THREE.Points(starsGeometry, starsMaterial);
+            scene.add(stars);
+        }
+
+        // Convert latitude/longitude to 3D vector
+        function latLonToVector3(lat, lon, radius) {
+            const phi = (90 - lat) * (Math.PI / 180);
+            const theta = (lon + 180) * (Math.PI / 180);
+
+            const x = -(radius * Math.sin(phi) * Math.cos(theta));
+            const z = (radius * Math.sin(phi) * Math.sin(theta));
+            const y = (radius * Math.cos(phi));
+
+            return new THREE.Vector3(x, y, z);
+        }
+
+        // Add mouse controls
+        function addMouseControls() {
+            let isMouseDown = false;
+            let mouseX = 0;
+            let mouseY = 0;
+            let targetRotationX = 0;
+            let targetRotationY = 0;
+            let rotationX = 0;
+            let rotationY = 0;
+
+            const container = document.getElementById('globe');
+
+            container.addEventListener('mousedown', (event) => {
+                isMouseDown = true;
+                mouseX = event.clientX;
+                mouseY = event.clientY;
+            });
+
+            container.addEventListener('mousemove', (event) => {
+                if (!isMouseDown) return;
+
+                const deltaX = event.clientX - mouseX;
+                const deltaY = event.clientY - mouseY;
+
+                targetRotationY += deltaX * 0.01;
+                targetRotationX += deltaY * 0.01;
+
+                mouseX = event.clientX;
+                mouseY = event.clientY;
+            });
+
+            container.addEventListener('mouseup', () => {
+                isMouseDown = false;
+            });
+
+            container.addEventListener('wheel', (event) => {
+                event.preventDefault();
+                const delta = event.deltaY * 0.001;
+                camera.position.z += delta;
+                camera.position.z = Math.max(1.5, Math.min(10, camera.position.z));
+            });
+
+            // Smooth rotation animation
+            function updateRotation() {
+                rotationX += (targetRotationX - rotationX) * 0.1;
+                rotationY += (targetRotationY - rotationY) * 0.1;
+                
+                if (globeGroup) {
+                    globeGroup.rotation.x = rotationX;
+                    globeGroup.rotation.y = rotationY;
+                }
+            }
+
+            // Auto-rotation when not interacting
+            let autoRotate = true;
+            container.addEventListener('mousedown', () => { autoRotate = false; });
+            setTimeout(() => { autoRotate = true; }, 5000);
+
+            // Store the update function for use in animation loop
+            window.updateRotation = updateRotation;
+            window.autoRotate = () => autoRotate;
+        }
+
+        // Create a curved connection line between two points
+        function createConnectionArc(start, end) {
+            // Create points for a curved line that follows the great circle
+            const points = [];
+            const numPoints = 50;
+            
+            // Create vectors for the start and end points
+            const v1 = start.clone().normalize();
+            const v2 = end.clone().normalize();
+            
+            // Calculate the angle between the vectors
+            const angle = v1.angleTo(v2);
+            
+            // Create points along the great circle
+            for (let i = 0; i <= numPoints; i++) {
+                const t = i / numPoints;
+                const f = t * angle;
+                
+                // Rotate from v1 to v2
+                const q = new THREE.Quaternion().setFromUnitVectors(v1, v2);
+                const vec = v1.clone().applyQuaternion(q.clone().slerp(new THREE.Quaternion(), 1 - t));
+                
+                // Position at the desired radius (slightly above the globe surface)
+                const point = vec.multiplyScalar(1.02);
+                points.push(point);
+            }
+            
+            // Create the geometry and line
+            const geometry = new THREE.BufferGeometry().setFromPoints(points);
+            const material = new THREE.LineBasicMaterial({
+                color: 0xff7b54,
+                transparent: true,
+                opacity: 0.6,
+                linewidth: 1
+            });
+            
+            return new THREE.Line(geometry, material);
+        }
+
+        // Add IP markers to globe
+        function addIPMarkersToGlobe(locations) {
+            if (!scene || !globe) {
+                console.error('Globe not initialized');
+                return;
+            }
+
+            // Clear existing markers
+            ipMarkers.forEach(marker => {
+                globeGroup.remove(marker);
+            });
+            ipMarkers = [];
+
+            // Clear existing connection arcs
+            connectionArcs.forEach(arc => globeGroup.remove(arc));
+            connectionArcs = [];
+
+            locations.forEach((location, index) => {
+                if (location.latitude && location.longitude) {
+                    const pos = latLonToVector3(location.latitude, location.longitude, 1.02);
+                    
+                    // Create glowing marker
+                    const markerGeometry = new THREE.SphereGeometry(0.01, 16, 16);
+                    const markerMaterial = new THREE.MeshBasicMaterial({ 
+                        color: 0x64ffda,
+                        transparent: true,
+                        opacity: 0.8
+                    });
+                    const marker = new THREE.Mesh(markerGeometry, markerMaterial);
+                    marker.position.copy(pos);
+                    
+                    // Add glow effect
+                    const glowGeometry = new THREE.SphereGeometry(0.02, 16, 16);
+                    const glowMaterial = new THREE.MeshBasicMaterial({
+                        color: 0x64ffda,
+                        transparent: true,
+                        opacity: 0.3
+                    });
+                    const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+                    glow.position.copy(pos);
+                    
+                    // Store location data for click handling
+                    marker.userData = location;
+                    glow.userData = location;
+                    
+                    globeGroup.add(marker);
+                    globeGroup.add(glow);
+                    ipMarkers.push(marker);
+                    ipMarkers.push(glow);
+                    
+                    // Create connection lines to user location
+                    if (userLocation) {
+                        const userPos = latLonToVector3(userLocation.latitude, userLocation.longitude, 1.02);
+                        const arc = createConnectionArc(userPos, pos);
+                        globeGroup.add(arc);
+                        connectionArcs.push(arc);
+                    }
+                    
+                    // Animate marker appearance
+                    marker.scale.set(0, 0, 0);
+                    glow.scale.set(0, 0, 0);
+                    
+                    setTimeout(() => {
+                        animateMarkerAppearance(marker, glow);
+                    }, index * 100);
+                }
+            });
+            
+            // Add user marker if available
+            if (userLocation) {
+                addUserMarkerToGlobe();
+            }
+        }
+        
+        // Add user marker to the globe
+        function addUserMarkerToGlobe() {
+            if (!scene || !globe || !userLocation) return;
+            
+            // Remove existing user marker
+            if (userMarker) {
+                globeGroup.remove(userMarker);
+            }
+            
+            const pos = latLonToVector3(userLocation.latitude, userLocation.longitude, 1.02);
+            
+            // Create user marker (larger and red)
+            const markerGeometry = new THREE.SphereGeometry(0.015, 16, 16);
+            const markerMaterial = new THREE.MeshBasicMaterial({ 
+                color: 0xff5252,
+                transparent: true,
+                opacity: 0.9
+            });
+            userMarker = new THREE.Mesh(markerGeometry, markerMaterial);
+            userMarker.position.copy(pos);
+            
+            // Add glow effect
+            const glowGeometry = new THREE.SphereGeometry(0.03, 16, 16);
+            const glowMaterial = new THREE.MeshBasicMaterial({
+                color: 0xff5252,
+                transparent: true,
+                opacity: 0.4
+            });
+            const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+            glow.position.copy(pos);
+            
+            // Store location data for click handling
+            userMarker.userData = userLocation;
+            glow.userData = userLocation;
+            
+            globeGroup.add(userMarker);
+            globeGroup.add(glow);
+            ipMarkers.push(userMarker);
+            ipMarkers.push(glow);
+            
+            // Create connection lines to all IPs
+            currentLocations.forEach(location => {
+                if (location.latitude && location.longitude) {
+                    const ipPos = latLonToVector3(location.latitude, location.longitude, 1.02);
+                    const arc = createConnectionArc(pos, ipPos);
+                    globeGroup.add(arc);
+                    connectionArcs.push(arc);
+                }
+            });
+            
+            // Animate marker appearance
+            userMarker.scale.set(0, 0, 0);
+            glow.scale.set(0, 0, 0);
+            
+            setTimeout(() => {
+                animateMarkerAppearance(userMarker, glow);
+            }, 0);
+        }
+
+        // Animate marker appearance
+        function animateMarkerAppearance(marker, glow) {
+            const animate = () => {
+                marker.scale.x += 0.05;
+                marker.scale.y += 0.05;
+                marker.scale.z += 0.05;
+                
+                glow.scale.x += 0.05;
+                glow.scale.y += 0.05;
+                glow.scale.z += 0.05;
+                
+                if (marker.scale.x < 1) {
+                    requestAnimationFrame(animate);
+                }
+            };
+            animate();
+        }
+
+        // Handle window resize
+        function onWindowResize() {
+            if (!camera || !renderer) return;
+            
+            const container = document.getElementById('globe');
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+            
+            camera.aspect = width / height;
+            camera.updateProjectionMatrix();
+            renderer.setSize(width, height);
+        }
+
+        // Animation loop
+        function animate() {
+            animationId = requestAnimationFrame(animate);
+            
+            if (window.updateRotation) {
+                window.updateRotation();
+            }
+            
+            // Auto-rotate when not interacting
+            if (window.autoRotate && window.autoRotate() && globeGroup) {
+                globeGroup.rotation.y += 0.001;
+            }
+            
+            // Animate IP markers
+            ipMarkers.forEach((marker, index) => {
+                if (marker.material.opacity) {
+                    marker.material.opacity = 0.5 + 0.3 * Math.sin(Date.now() * 0.001 + index);
+                }
+            });
+            
+            // Animate connection lines
+            connectionArcs.forEach((arc, index) => {
+                if (arc.material) {
+                    arc.material.opacity = 0.4 + 0.2 * Math.sin(Date.now() * 0.001 + index * 0.5);
+                }
+            });
+            
+            if (renderer && scene && camera) {
+                renderer.render(scene, camera);
+            }
+        }
+
+        // IP geolocation service
+        async function getIPLocation(ip) {
+            try {
+                // Use ip-api.com for geolocation
+                const response = await fetch(`https://ipapi.co/${ip}/json/`);
+                const data = await response.json();
+                
+                return {
+                    ip: ip,
+                    city: data.city || 'Unknown',
+                    region: data.region || 'Unknown',
+                    country: data.country_name || 'Unknown',
+                    latitude: data.latitude || 0,
+                    longitude: data.longitude || 0
+                };
+            } catch (error) {
+                console.warn('Failed to get location for IP:', ip, error.message);
+                return {
+                    ip: ip,
+                    city: 'Unknown',
+                    region: 'Unknown',
+                    country: 'Unknown',
+                    latitude: (Math.random() * 180 - 90),
+                    longitude: (Math.random() * 360 - 180)
+                };
+            }
+        }
+
+        // Parse IP addresses from PCAPNG file
+        async function parsePCAPNG(file) {
+            const ips = new Set();
+            const ipPattern = /\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b/g;
+            
+            try {
+                // Read file as ArrayBuffer
+                const arrayBuffer = await file.arrayBuffer();
+                const dataView = new DataView(arrayBuffer);
+                
+                // PCAPNG file header (simplified parsing)
+                // We'll scan through the file looking for IPv4 addresses
+                let position = 0;
+                const chunkSize = 4096;
+                let textDecoder = new TextDecoder();
+                
+                while (position < arrayBuffer.byteLength) {
+                    const end = Math.min(position + chunkSize, arrayBuffer.byteLength);
+                    const chunk = new Uint8Array(arrayBuffer, position, end - position);
+                    
+                    // Convert to text to find IP addresses
+                    const text = textDecoder.decode(chunk);
+                    const matches = text.match(ipPattern);
+                    
+                    if (matches) {
+                        matches.forEach(ip => {
+                            if (!isPrivateIP(ip)) {
+                                ips.add(ip);
+                            }
+                        });
+                    }
+                    
+                    position = end;
+                }
+                
+                return Array.from(ips);
+            } catch (error) {
+                console.error('Error parsing PCAPNG file:', error);
+                // Fallback to text extraction
+                const text = await file.text();
+                const matches = text.match(ipPattern) || [];
+                const uniqueIPs = new Set();
+                
+                matches.forEach(ip => {
+                    if (!isPrivateIP(ip)) {
+                        uniqueIPs.add(ip);
+                    }
+                });
+                
+                return Array.from(uniqueIPs);
+            }
+        }
+
+        // Check if IP is private/local
+        function isPrivateIP(ip) {
+            const parts = ip.split('.').map(Number);
+            return (
+                parts[0] === 10 ||
+                parts[0] === 127 ||
+                (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) ||
+                (parts[0] === 192 && parts[1] === 168) ||
+                parts[0] === 0 ||
+                parts[0] >= 224
+            );
+        }
+
+        // Update statistics
+        function updateStats(locations) {
+            const uniqueCountries = new Set();
+            const uniqueCities = new Set();
+            
+            locations.forEach(loc => {
+                if (loc.country !== 'Unknown') uniqueCountries.add(loc.country);
+                if (loc.city !== 'Unknown') uniqueCities.add(`${loc.city}, ${loc.country}`);
+            });
+            
+            document.getElementById('totalConnections').textContent = locations.length;
+            document.getElementById('uniqueIPs').textContent = locations.length;
+            document.getElementById('countries').textContent = uniqueCountries.size;
+            document.getElementById('cities').textContent = uniqueCities.size;
+        }
+
+        // Update connection list
+        function updateConnectionList(locations) {
+            const connectionsDiv = document.getElementById('connections');
+            connectionsDiv.innerHTML = '';
+            
+            locations.forEach(location => {
+                const item = document.createElement('div');
+                item.className = 'connection-item';
+                item.innerHTML = `
+                    <div>
+                        <div class="connection-ip">${location.ip}</div>
+                        <div class="connection-location">${location.city}, ${location.region}, ${location.country}</div>
+                    </div>
+                    <div class="connection-distance">${userLocation ? 
+                        Math.round(calculateDistance(
+                            userLocation.latitude, 
+                            userLocation.longitude,
+                            location.latitude,
+                            location.longitude
+                        )) + ' km' : ''}</div>
+                `;
+                connectionsDiv.appendChild(item);
+            });
+        }
+
+        // Calculate distance between two points (Haversine formula)
+        function calculateDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371; // Earth radius in km
+            const dLat = deg2rad(lat2 - lat1);
+            const dLon = deg2rad(lon2 - lon1);
+            const a = 
+                Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * 
+                Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
+            return R * c; // Distance in km
+        }
+
+        function deg2rad(deg) {
+            return deg * (Math.PI/180);
+        }
+
+        // Show status message
+        function showStatus(message, type) {
+            const statusDiv = document.getElementById('status');
+            statusDiv.textContent = message;
+            statusDiv.className = `status ${type}`;
+            statusDiv.style.display = 'block';
+        }
+
+        // Process uploaded file
+        async function processFile(file) {
+            console.log('processFile called with:', file);
+            
+            try {
+                document.getElementById('loading').style.display = 'block';
+                showStatus('Processing file...', 'processing');
+                
+                // Show file info
+                const fileInfo = document.getElementById('fileInfo');
+                fileInfo.innerHTML = `File: <strong>${file.name}</strong> | Size: <strong>${(file.size/1024).toFixed(2)} KB</strong>`;
+                fileInfo.style.display = 'block';
+                
+                // Parse PCAPNG file to get IPs
+                const ips = await parsePCAPNG(file);
+                
+                if (ips.length === 0) {
+                    showStatus('No public IP addresses found in the file', 'error');
+                    document.getElementById('loading').style.display = 'none';
+                    return;
+                }
+                
+                showStatus(`Found ${ips.length} unique IP addresses. Looking up locations...`, 'processing');
+                
+                // Get location data for all IPs
+                const locations = [];
+                
+                for (let i = 0; i < ips.length; i++) {
+                    try {
+                        const location = await getIPLocation(ips[i]);
+                        locations.push(location);
+                        
+                        // Update progress
+                        showStatus(`Processing IP ${i + 1} of ${ips.length}...`, 'processing');
+                    } catch (error) {
+                        console.error('Error getting location for IP:', ips[i], error);
+                    }
+                }
+                
+                if (locations.length === 0) {
+                    showStatus('Could not get location data for any IP addresses', 'error');
+                    document.getElementById('loading').style.display = 'none';
+                    return;
+                }
+                
+                currentLocations = locations;
+                
+                // Update UI
+                addIPMarkersToGlobe(locations);
+                updateStats(locations);
+                updateConnectionList(locations);
+                
+                // Show results
+                document.getElementById('globeContainer').style.display = 'block';
+                document.getElementById('stats').style.display = 'grid';
+                document.getElementById('connectionList').style.display = 'block';
+                document.getElementById('loading').style.display = 'none';
+                
+                showStatus(`Successfully processed ${locations.length} IP addresses`, 'success');
+                
+            } catch (error) {
+                console.error('Error processing file:', error);
+                showStatus('Error processing file: ' + error.message, 'error');
+                document.getElementById('loading').style.display = 'none';
+            }
+        }
+
+        // Initialize application
+        function initializeApp() {
+            console.log('Initializing app, THREE object:', typeof THREE);
+            
+            if (typeof THREE === 'undefined') {
+                console.error('Three.js not loaded, retrying...');
+                setTimeout(initializeApp, 1000);
+                return false;
+            }
+            
+            try {
+                return initGlobe();
+            } catch (error) {
+                console.error('Error initializing app:', error);
+                showStatus('Failed to initialize 3D visualization: ' + error.message, 'error');
+                return false;
+            }
+        }
+
+        // Handle raycasting for click detection
+        function setupClickDetection() {
+            if (!camera || !renderer || !scene) return;
+            
+            const raycaster = new THREE.Raycaster();
+            const mouse = new THREE.Vector2();
+            const container = document.getElementById('globe');
+            
+            container.addEventListener('click', (event) => {
+                const rect = container.getBoundingClientRect();
+                mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+                mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+                
+                raycaster.setFromCamera(mouse, camera);
+                const intersects = raycaster.intersectObjects(ipMarkers);
+                
+                if (intersects.length > 0) {
+                    const clickedMarker = intersects[0].object;
+                    const location = clickedMarker.userData;
+                    
+                    if (location) {
+                        // Show popup with location details
+                        showLocationPopup(location, event.clientX, event.clientY);
+                    }
+                }
+            });
+        }
+
+        // Show location popup
+        function showLocationPopup(location, x, y) {
+            // Remove existing popup
+            const existingPopup = document.getElementById('locationPopup');
+            if (existingPopup) {
+                existingPopup.remove();
+            }
+            
+            // Create new popup
+            const popup = document.createElement('div');
+            popup.id = 'locationPopup';
+            popup.style.cssText = `
+                position: fixed;
+                left: ${x + 10}px;
+                top: ${y - 10}px;
+                background: rgba(0, 0, 0, 0.9);
+                color: white;
+                padding: 15px;
+                border-radius: 8px;
+                border: 1px solid #64ffda;
+                z-index: 1000;
+                font-size: 14px;
+                box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+                max-width: 250px;
+            `;
+            
+            let distanceInfo = '';
+            if (userLocation) {
+                const distance = Math.round(calculateDistance(
+                    userLocation.latitude, 
+                    userLocation.longitude,
+                    location.latitude,
+                    location.longitude
+                ));
+                distanceInfo = `<div>📏 Distance: ${distance} km</div>`;
+            }
+            
+            popup.innerHTML = `
+                <div style="color: #64ffda; font-weight: bold; margin-bottom: 8px;">${location.ip}</div>
+                <div>📍 ${location.city}, ${location.region}</div>
+                <div>🌍 ${location.country}</div>
+                ${distanceInfo}
+                <div style="margin-top: 8px; font-size: 12px; color: #aaa;">
+                    Lat: ${location.latitude.toFixed(2)}, Lon: ${location.longitude.toFixed(2)}
+                </div>
+            `;
+            
+            document.body.appendChild(popup);
+            
+            // Remove popup after 3 seconds or on next click
+            setTimeout(() => {
+                if (popup.parentNode) {
+                    popup.remove();
+                }
+            }, 3000);
+            
+            document.addEventListener('click', () => {
+                if (popup.parentNode) {
+                    popup.remove();
+                }
+            }, { once: true });
+        }
+        
+        // Get user's location
+        function getUserLocation() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    position => {
+                        userLocation = {
+                            ip: 'Your Location',
+                            city: 'Your City',
+                            region: 'Your Region',
+                            country: 'Your Country',
+                            latitude: position.coords.latitude,
+                            longitude: position.coords.longitude
+                        };
+                        
+                        document.getElementById('locationStatus').style.display = 'block';
+                        document.getElementById('locationStatus').textContent = 'Location enabled! Your position will appear on the globe';
+                        
+                        if (document.getElementById('globeContainer').style.display === 'block') {
+                            addUserMarkerToGlobe();
+                            updateConnectionList(currentLocations);
+                        }
+                    },
+                    error => {
+                        console.error('Geolocation error:', error);
+                        document.getElementById('locationStatus').style.display = 'block';
+                        document.getElementById('locationStatus').textContent = 'Location access denied. Using default location.';
+                        document.getElementById('locationStatus').style.color = '#ff5252';
+                        
+                        // Fallback to default location (New York)
+                        userLocation = {
+                            ip: 'Default Location',
+                            city: 'New York',
+                            region: 'New York',
+                            country: 'United States',
+                            latitude: 40.7128,
+                            longitude: -74.0060
+                        };
+                        
+                        if (document.getElementById('globeContainer').style.display === 'block') {
+                            addUserMarkerToGlobe();
+                            updateConnectionList(currentLocations);
+                        }
+                    }
+                );
+            } else {
+                console.log('Geolocation is not supported by this browser.');
+                document.getElementById('locationStatus').style.display = 'block';
+                document.getElementById('locationStatus').textContent = 'Geolocation not supported by your browser.';
+                document.getElementById('locationStatus').style.color = '#ff5252';
+            }
+        }
+
+        // DOM loaded event
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM loaded, initializing...');
+            
+            // Initialize app
+            setTimeout(() => {
+                const initialized = initializeApp();
+                if (initialized) {
+                    setupClickDetection();
+                }
+            }, 500);
+            
+            // File input event
+            const fileInput = document.getElementById('fileInput');
+            fileInput.addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                if (file) {
+                    processFile(file);
+                }
+            });
+            
+            // Location button event
+            const locationButton = document.getElementById('locationButton');
+            locationButton.addEventListener('click', function() {
+                getUserLocation();
+                locationButton.textContent = '🌍 Locating...';
+                locationButton.disabled = true;
+            });
+            
+            // Tab switching
+            document.getElementById('globeTab').addEventListener('click', function() {
+                document.getElementById('globeContainer').style.display = 'block';
+                document.getElementById('connectionList').style.display = 'none';
+                document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+                this.classList.add('active');
+            });
+            
+            document.getElementById('connectionsTab').addEventListener('click', function() {
+                document.getElementById('globeContainer').style.display = 'none';
+                document.getElementById('connectionList').style.display = 'block';
+                document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+                this.classList.add('active');
+            });
+        });
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', () => {
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+            }
+        });
+    </script>
+</body>
+</html>
