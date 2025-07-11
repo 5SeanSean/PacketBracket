@@ -1,0 +1,207 @@
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    color: #333;
+}
+.container {
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 20px;
+    padding: 30px;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+    backdrop-filter: blur(10px);
+}
+h1 {
+    color: #2c3e50;
+    text-align: center;
+    margin-bottom: 30px;
+    font-size: 2.5em;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+}
+.upload-area {
+    border: 3px dashed #3498db;
+    border-radius: 15px;
+    padding: 40px;
+    text-align: center;
+    background: linear-gradient(45deg, #f8f9fa, #e9ecef);
+    transition: all 0.3s ease;
+    margin-bottom: 30px;
+}
+.upload-area:hover {
+    border-color: #2980b9;
+    transform: translateY(-2px);
+    box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+}
+.upload-area.dragover {
+    background: linear-gradient(45deg, #e3f2fd, #bbdefb);
+    border-color: #1976d2;
+}
+input[type="file"] {
+    display: none;
+}
+.upload-btn {
+    background: linear-gradient(45deg, #3498db, #2980b9);
+    color: white;
+    padding: 12px 30px;
+    border: none;
+    border-radius: 25px;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: bold;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(52, 152, 219, 0.3);
+}
+.upload-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(52, 152, 219, 0.4);
+}
+.progress-bar {
+    width: 100%;
+    height: 20px;
+    background: #ecf0f1;
+    border-radius: 10px;
+    overflow: hidden;
+    margin: 20px 0;
+}
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(45deg, #3498db, #2980b9);
+    transition: width 0.3s ease;
+    width: 0%;
+}
+.results {
+    margin-top: 30px;
+    background: #f8f9fa;
+    border-radius: 15px;
+    padding: 20px;
+    border-left: 5px solid #3498db;
+}
+.ip-card {
+    background: white;
+    margin: 15px 0;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    border-left: 4px solid #e74c3c;
+}
+.ip-card h3 {
+    color: #2c3e50;
+    margin-top: 0;
+    font-size: 1.3em;
+}
+.info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 15px;
+    margin: 15px 0;
+}
+.info-item {
+    background: #ecf0f1;
+    padding: 10px;
+    border-radius: 8px;
+    border-left: 3px solid #3498db;
+}
+.info-item strong {
+    color: #2c3e50;
+}
+.error {
+    background: #f8d7da;
+    color: #721c24;
+    padding: 15px;
+    border-radius: 8px;
+    border-left: 4px solid #dc3545;
+}
+.summary {
+    background: linear-gradient(45deg, #2ecc71, #27ae60);
+    color: white;
+    padding: 20px;
+    border-radius: 15px;
+    margin-bottom: 20px;
+    text-align: center;
+}
+.summary h2 {
+    margin: 0 0 10px 0;
+}
+.loading {
+    text-align: center;
+    padding: 20px;
+    color: #3498db;
+    font-size: 18px;
+}
+.location-info {
+    background: #e3f2fd;
+    padding: 15px;
+    border-radius: 8px;
+    margin: 10px 0;
+}
+.map-link {
+    color: #1976d2;
+    text-decoration: none;
+    display: inline-block;
+    margin-top: 10px;
+    padding: 5px 10px;
+    background: #e3f2fd;
+    border-radius: 5px;
+    border: 1px solid #bbdefb;
+}
+.map-link:hover {
+    text-decoration: underline;
+    background: #bbdefb;
+}
+.ip-address {
+    font-family: monospace;
+    font-size: 1.1em;
+    font-weight: bold;
+    color: #2c3e50;
+}
+.packets-list {
+    margin-top: 15px;
+    border-top: 1px solid #eee;
+    padding-top: 15px;
+}
+.packet-item {
+    margin-bottom: 10px;
+    padding: 10px;
+    background: #f8f9fa;
+    border-radius: 5px;
+}
+.protocol-tag {
+    display: inline-block;
+    padding: 3px 8px;
+    background: #e8f5e9;
+    border-radius: 4px;
+    color: #2e7d32;
+    font-size: 0.9em;
+    margin-right: 8px;
+}
+.limit-notice {
+    background: #fff3cd;
+    padding: 15px;
+    border-radius: 8px;
+    margin: 15px 0;
+    border-left: 4px solid #ffc107;
+}
+.private-ip {
+    background: #fff3cd;
+    padding: 10px;
+    border-radius: 5px;
+    margin-top: 5px;
+    color: #856404;
+}
+.multicast-ip {
+    background: #e2e3e5;
+    padding: 10px;
+    border-radius: 5px;
+    margin-top: 5px;
+    color: #383d41;
+}
+.api-notice {
+    background: #e2e3e5;
+    padding: 15px;
+    border-radius: 8px;
+    margin: 15px 0;
+    border-left: 4px solid #6c757d;
+}

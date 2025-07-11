@@ -90,11 +90,12 @@ function initGlobe() {
 
         // Add clouds layer
         const cloudsGeometry = new THREE.SphereGeometry(1.01, 64, 64);
-        const cloudsTexture = textureLoader.load(
-            'https://threejs.org/examples/textures/planets/earth_clouds_2048.png',
-            () => updateTextureStatus('Clouds texture loaded'),
-            () => updateTextureStatus('Error loading clouds texture', true)
-        );
+        // In globe.js, replace the cloud texture URL with:
+const cloudsTexture = textureLoader.load(
+    'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/textures/planets/earth_clouds_2048.png',
+    () => updateTextureStatus('Clouds texture loaded'),
+    () => updateTextureStatus('Error loading clouds texture', true)
+);
         
         const cloudsMaterial = new THREE.MeshPhongMaterial({
             map: cloudsTexture,
