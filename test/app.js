@@ -125,6 +125,9 @@ function formatLocationInfo(location, ip) {
     if (location.isMulticast) {
         return `<div class="multicast-ip">Multicast IP Address (${ip}) - No geolocation available</div>`;
     }
+    if (location.isSpecial) {
+        return `<div class="private-ip">Special/Reserved IP Address (${ip}) - No geolocation available</div>`;
+    }
     if (location.error) {
         return `<div class="error">${location.error}</div>`;
     }

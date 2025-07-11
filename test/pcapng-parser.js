@@ -122,63 +122,87 @@ class PcapngParser {
     }
 
     async fetchLocationsForFirstIPs() {
-        const uniqueIPsArray = Array.from(this.uniqueIPs).slice(0, this.maxIPsToProcess);
+    const uniqueIPsArray = Array.from(this.uniqueIPs).slice(0, this.maxIPsToProcess);
+    
+    for (let i = 0; i < uniqueIPsArray.length; i++) {
+        const ip = uniqueIPsArray[i];
         
-        for (let i = 0; i < uniqueIPsArray.length; i++) {
-            const ip = uniqueIPsArray[i];
-            
+        if (this.isSpecialIP(ip)) {
+            // Skip API call for special IPs
             if (this.isPrivateIP(ip)) {
                 this.ipCache[ip] = { isPrivate: true };
-                continue;
-            }
-            
-            if (this.isMulticastIP(ip)) {
+            } else if (this.isMulticastIP(ip)) {
                 this.ipCache[ip] = { isMulticast: true };
-                continue;
+            } else {
+                this.ipCache[ip] = { isSpecial: true };
             }
-
-            try {
-                progressText.textContent = `Fetching location for IP ${i+1} of ${uniqueIPsArray.length}: ${ip}`;
-                
-                const response = await fetch(`${this.geoApiEndpoint}?apiKey=${this.geoApiKey}&ip=${ip}`);
-                
-                if (response.ok) {
-                    const data = await response.json();
-                    this.ipCache[ip] = {
-                        country: data.country_name || 'Unknown',
-                        city: data.city || 'Unknown',
-                        region: data.state_prov || 'Unknown',
-                        isp: data.isp || 'Unknown',
-                        asn: data.asn || 'Unknown',
-                        mapUrl: data.latitude && data.longitude ? 
-                            `https://www.google.com/maps?q=${data.latitude},${data.longitude}` : null
-                    };
-                } else {
-                    const errorData = await response.json().catch(() => ({}));
-                    console.error('API Error:', errorData);
-                    this.ipCache[ip] = { 
-                        error: errorData.message || `API Error: ${response.status} ${response.statusText}`
-                    };
-                }
-            } catch (error) {
-                console.error(`Error fetching location for IP ${ip}:`, error);
-                this.ipCache[ip] = { error: 'Failed to fetch location' };
-            }
-            
-            await new Promise(resolve => setTimeout(resolve, this.requestDelay));
+            continue;
         }
+
+        // Only make API call for public IPs
+        try {
+            progressText.textContent = `Fetching location for IP ${i+1} of ${uniqueIPsArray.length}: ${ip}`;
+            
+            const response = await fetch(`${this.geoApiEndpoint}?apiKey=${this.geoApiKey}&ip=${ip}`);
+            
+            if (response.ok) {
+                const data = await response.json();
+                this.ipCache[ip] = {
+                    country: data.country_name || 'Unknown',
+                    city: data.city || 'Unknown',
+                    region: data.state_prov || 'Unknown',
+                    isp: data.isp || 'Unknown',
+                    asn: data.asn || 'Unknown',
+                    mapUrl: data.latitude && data.longitude ? 
+                        `https://www.google.com/maps?q=${data.latitude},${data.longitude}` : null
+                };
+            } else {
+                const errorData = await response.json().catch(() => ({}));
+                console.error('API Error:', errorData);
+                this.ipCache[ip] = { 
+                    error: errorData.message || `API Error: ${response.status} ${response.statusText}`
+                };
+            }
+        } catch (error) {
+            console.error(`Error fetching location for IP ${ip}:`, error);
+            this.ipCache[ip] = { error: 'Failed to fetch location' };
+        }
+        
+        await new Promise(resolve => setTimeout(resolve, this.requestDelay));
     }
+}
 
     isPrivateIP(ip) {
-        const parts = ip.split('.').map(Number);
-        return (
-            parts[0] === 10 ||
-            (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) ||
-            (parts[0] === 192 && parts[1] === 168) ||
-            parts[0] === 127 ||
-            parts[0] === 0
-        );
-    }
+    const parts = ip.split('.').map(Number);
+    return (
+        parts[0] === 10 ||                              // 10.0.0.0/8
+        (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) ||  // 172.16.0.0/12
+        (parts[0] === 192 && parts[1] === 168) ||       // 192.168.0.0/16
+        parts[0] === 127 ||                             // 127.0.0.0/8 (localhost)
+        parts[0] === 0 ||                               // 0.0.0.0
+        (parts[0] === 169 && parts[1] === 254)          // 169.254.0.0/16 (link-local)
+    );
+}
+
+isSpecialIP(ip) {
+    const parts = ip.split('.').map(Number);
+    return (
+        this.isPrivateIP(ip) ||
+        this.isMulticastIP(ip) ||
+        parts[0] === 100 && parts[1] >= 64 && parts[1] <= 127 ||  // 100.64.0.0/10 (Carrier-grade NAT)
+        parts[0] === 192 && parts[1] === 0 && parts[2] === 0 ||   // 192.0.0.0/24 (IANA)
+        parts[0] === 192 && parts[1] === 0 && parts[2] === 2 ||   // 192.0.2.0/24 (TEST-NET-1)
+        parts[0] === 198 && parts[1] === 51 && parts[2] === 100 || // 198.51.100.0/24 (TEST-NET-2)
+        parts[0] === 203 && parts[1] === 0 && parts[2] === 113 || // 203.0.113.0/24 (TEST-NET-3)
+        parts[0] === 192 && parts[1] === 88 && parts[2] === 99 ||  // 192.88.99.0/24 (6to4 relay anycast)
+        parts[0] === 198 && parts[1] === 18 ||                     // 198.18.0.0/15 (benchmarking)
+        parts[0] === 224 || parts[0] >= 240                        // Multicast/reserved
+    );
+}
+
+isPublicIP(ip) {
+    return !this.isSpecialIP(ip);
+}
 
     isMulticastIP(ip) {
         const parts = ip.split('.').map(Number);
