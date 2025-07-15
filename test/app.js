@@ -1,3 +1,4 @@
+import PcapngParser from './pcapng-parser.js';
 // File handling with progress
 const uploadArea = document.getElementById('uploadArea');
 const fileInput = document.getElementById('fileInput');
@@ -5,6 +6,39 @@ const results = document.getElementById('results');
 const progressContainer = document.getElementById('progressContainer');
 const progressFill = document.getElementById('progressFill');
 const progressText = document.getElementById('progressText');
+
+// Create globe container - moved to DOMContentLoaded event
+let globeContainer;
+
+const sidePanelScript = document.createElement('script');
+sidePanelScript.src = 'side-panel.js';
+document.head.appendChild(sidePanelScript);
+
+// Wait for DOM to be fully loaded before creating elements
+document.addEventListener('DOMContentLoaded', function() {
+    globeContainer = document.createElement('div');
+    globeContainer.id = 'globe';
+    globeContainer.style.width = '100%';
+    globeContainer.style.height = '500px';
+    globeContainer.style.margin = '20px 0';
+    globeContainer.style.borderRadius = '10px';
+    globeContainer.style.overflow = 'hidden';
+    
+    // Insert the globe container after the progress container
+    progressContainer.parentNode.insertBefore(globeContainer, progressContainer.nextSibling);
+});
+
+// Load Three.js dynamically
+const threeScript = document.createElement('script');
+threeScript.src = 'https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js';
+document.head.appendChild(threeScript);
+
+// Load globe.js after Three.js is loaded
+threeScript.onload = () => {
+    const globeScript = document.createElement('script');
+    globeScript.src = 'globe.js';
+    document.head.appendChild(globeScript);
+};
 
 uploadArea.addEventListener('dragover', (e) => {
     e.preventDefault();
@@ -85,37 +119,57 @@ function displayResults(result, file) {
             </div>
         </div>
 
-        <div class="limit-notice">
-            <strong>Note:</strong> Displaying information for first 5 unique IP addresses only.
-        </div>
-
         <div class="api-notice">
             <strong>API Notice:</strong> Using IPGeolocation.io API for geolocation data.
+        </div>
+
+        <div class="visualization-section">
+            <h2>🌍 Network Traffic Visualization</h2>
+            <p>Showing all public IP addresses found in the capture file</p>
         </div>
     `;
 
     if (summary.uniqueIPs === 0) {
         html += `<div class="error">No IPv4 packets found in this capture</div>`;
-    } else {
-        const firstFiveIPs = Array.from(ipPackets.entries()).slice(0, 5);
-        
-        firstFiveIPs.forEach(([ip, packets]) => {
-            const location = ipCache[ip] || { error: 'Location not available' };
-            
-            html += `<div class="ip-card">
-                <h3><span class="ip-address">${ip}</span></h3>
-                ${formatLocationInfo(location, ip)}
-                
-                <div class="packets-list">
-                    <strong>Packets (${packets.length}):</strong>
-                    ${packets.slice(0, 5).map(packet => formatPacketInfo(packet, ip)).join('')}
-                    ${packets.length > 5 ? `<div>... and ${packets.length - 5} more packets</div>` : ''}
-                </div>
-            </div>`;
-        });
     }
 
     results.innerHTML = html;
+    
+    // Prepare data for globe visualization
+    const ipData = [];
+    const uniqueIPs = Array.from(result.ipPackets.keys());
+    
+    uniqueIPs.forEach(ip => {
+        const location = result.ipCache[ip] || { error: 'Location not available' };
+        if (!location.error && !location.isPrivate && !location.isMulticast && !location.isSpecial) {
+            ipData.push({
+                ip: ip,
+                city: location.city,
+                region: location.region,
+                country: location.country,
+                latitude: location.latitude,
+                longitude: location.longitude,
+                packets: result.ipPackets.get(ip)
+            });
+        }
+    });
+    
+    // Display IP details in side panel
+
+if (window.displayIPDetails) {
+    window.displayIPDetails(ipData, ipPackets, file, {
+        totalPackets: summary.totalPackets,
+        ipv4Packets: result.packets.filter(p => p.ipv4 && !p.ipv4.error).length,
+        uniqueIPs: summary.uniqueIPs
+    });
+}
+    
+    // Initialize globe with the IP data
+    if (window.initGlobe && ipData.length > 0) {
+        initGlobe(ipData);
+    } else if (ipData.length === 0) {
+        results.innerHTML += `<div class="error">No public IP addresses with geolocation data found</div>`;
+    }
 }
 
 function formatLocationInfo(location, ip) {
