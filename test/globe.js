@@ -9,9 +9,61 @@ let connectionArcs = [];
 let currentLocations = [];
 let textureLoader;
 let globeGroup;
+let selectedMarker = null;
+let selectedIP = null;
+const markerScaleSpeed = 0.1;
+const SELECTED_COLOR = 0x64ffda; // Light hacker teal
+const DEFAULT_COLOR = 0x00ff41;  // Dark hacker green
+const CONNECTION_WIDTH = 0.5;    // Base width
+const SELECTED_CONNECTION_WIDTH = 1.5; // Selected width
 
+
+function createConnectionMaterial() {
+    return new THREE.ShaderMaterial({
+        uniforms: {
+            color: { value: new THREE.Color(DEFAULT_COLOR) },
+            width: { value: CONNECTION_WIDTH }
+        },
+        vertexShader: `
+            void main() {
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }
+        `,
+        fragmentShader: `
+            uniform vec3 color;
+            uniform float width;
+            
+            void main() {
+                gl_FragColor = vec4(color, 0.6);
+            }
+        `,
+        transparent: true
+    });
+}
 // Initialize the 3D globe with IP data
 function initGlobe(ipData) {
+      function createConnectionMaterial() {
+    return new THREE.ShaderMaterial({
+        uniforms: {
+            color: { value: new THREE.Color(DEFAULT_COLOR) },
+            width: { value: CONNECTION_WIDTH }
+        },
+        vertexShader: `
+            void main() {
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }
+        `,
+        fragmentShader: `
+            uniform vec3 color;
+            uniform float width;
+            
+            void main() {
+                gl_FragColor = vec4(color, 0.6);
+            }
+        `,
+        transparent: true
+    });
+}
     console.log('Initializing 3D globe with IP data:', ipData);
     
     const validIPs = ipData.filter(ip => {
@@ -156,16 +208,16 @@ function initGlobe(ipData) {
         userLocation = { latitude: centerLat, longitude: centerLon };
 
         // Create markers and connections for each IP
-        ipData.forEach(ip => {
-            const position = latLonToVector3(ip.latitude, ip.longitude, 1.01);
-            const marker = createIPMarker(position, ip.ip);
-            globeGroup.add(marker);
-            
-            const userPosition = latLonToVector3(userLocation.latitude, userLocation.longitude, 1.01);
-            const connection = createConnectionArc(userPosition, position);
-            globeGroup.add(connection);
-            connectionArcs.push(connection);
-        });
+      ipData.forEach(ip => {
+    const position = latLonToVector3(ip.latitude, ip.longitude, 1.01);
+    const marker = createIPMarker(position, ip.ip);
+    globeGroup.add(marker);
+    
+    const userPosition = latLonToVector3(userLocation.latitude, userLocation.longitude, 1.01);
+    const connection = createConnectionArc(userPosition, position, ip.ip); // Pass ip.ip here
+    globeGroup.add(connection);
+    connectionArcs.push(connection);
+});
 
         // Add user marker at center
         userMarker = createUserMarker(latLonToVector3(userLocation.latitude, userLocation.longitude, 1.01));
@@ -186,24 +238,63 @@ function initGlobe(ipData) {
 
 // Create an IP location marker
 function createIPMarker(position, ip) {
-    const geometry = new THREE.SphereGeometry(0.02, 16, 16);
-    const material = new THREE.MeshBasicMaterial({
-        color: 0xff5252,
-        transparent: true,
-        opacity: 0.8
+    // Smaller main marker (reduced from 0.02 to 0.015)
+    const geometry = new THREE.SphereGeometry(0.015, 16, 16);
+    const material = new THREE.MeshPhongMaterial({
+        color: DEFAULT_COLOR,
+        emissive: DEFAULT_COLOR,
+        emissiveIntensity: 0.2,
+        specular: 0xffffff,
+        shininess: 50,
+        fog: true
     });
     const marker = new THREE.Mesh(geometry, material);
     marker.position.copy(position);
-    
-    // Add glow effect
-    const glowGeometry = new THREE.SphereGeometry(0.04, 16, 16);
-    const glowMaterial = new THREE.MeshBasicMaterial({
-        color: 0xff5252,
-        transparent: true,
-        opacity: 0.3
+    marker.userData = {
+        ip: ip,
+        isSelected: false,
+        targetScale: new THREE.Vector3(1, 1, 1),
+        defaultColor: DEFAULT_COLOR
+    };
+
+    // Futuristic glow effect
+    const glowGeometry = new THREE.SphereGeometry(0.02, 32, 32);
+    const glowMaterial = new THREE.ShaderMaterial({
+        uniforms: {
+            glowColor: { type: "c", value: new THREE.Color(DEFAULT_COLOR) },
+            viewVector: { type: "v3", value: camera.position }
+        },
+        vertexShader: `
+            uniform vec3 viewVector;
+            varying float intensity;
+            void main() {
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                vec3 actual_normal = normalize(normalMatrix * normal);
+                intensity = pow(0.7 - dot(actual_normal, normalize(viewVector)), 2.0);
+            }
+        `,
+        fragmentShader: `
+            uniform vec3 glowColor;
+            varying float intensity;
+            void main() {
+                vec3 glow = glowColor * intensity;
+                gl_FragColor = vec4(glow, 0.3);
+            }
+        `,
+        side: THREE.BackSide,
+        blending: THREE.AdditiveBlending,
+        transparent: true
     });
+    
     const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+    glow.scale.set(1.3, 1.3, 1.3);
     marker.add(glow);
+    marker.userData.glow = glow;
+    
+    // Add click handler
+    marker.onClick = () => {
+        selectMarker(marker, ip);
+    };
     
     scene.add(marker);
     ipMarkers.push(marker);
@@ -211,23 +302,126 @@ function createIPMarker(position, ip) {
     return marker;
 }
 
+function selectMarker(marker, ip) {
+    // Deselect previous
+    if (selectedMarker) {
+        // Smooth scale down
+        selectedMarker.userData.targetScale.set(1, 1, 1);
+        
+        // Reset color and glow
+        selectedMarker.material.color.setHex(selectedMarker.userData.defaultColor);
+        selectedMarker.material.emissive.setHex(selectedMarker.userData.defaultColor);
+        
+        if (selectedMarker.userData.glow) {
+            selectedMarker.userData.glow.material.uniforms.glowColor.value.setHex(selectedMarker.userData.defaultColor);
+        }
+        
+        // Remove pulse if exists
+        if (selectedMarker.pulseEffect) {
+            selectedMarker.remove(selectedMarker.pulseEffect);
+            scene.remove(selectedMarker.pulseEffect);
+            selectedMarker.pulseEffect = null;
+        }
+        
+        // Reset connections
+        connectionArcs.forEach(arc => {
+            if (arc.userData.isSelected) {
+                arc.material.color.setHex(DEFAULT_COLOR);
+                arc.material.opacity = 0.6;
+                arc.userData.targetWidth = arc.userData.defaultWidth;
+                arc.userData.isSelected = false;
+            }
+        });
+    }
+
+    // Select new marker
+    selectedMarker = marker;
+    selectedIP = ip;
+    
+    // Visual changes for selection
+    marker.material.color.setHex(SELECTED_COLOR);
+    marker.material.emissive.setHex(SELECTED_COLOR);
+    marker.userData.targetScale.set(2.5, 2.5, 2.5); // Bigger scale when selected
+    
+    // Update glow color
+    if (marker.userData.glow) {
+        marker.userData.glow.material.uniforms.glowColor.value.setHex(SELECTED_COLOR);
+    }
+
+    // Add advanced pulse effect
+    const pulseGeometry = new THREE.SphereGeometry(0.025, 32, 32);
+    const pulseMaterial = new THREE.MeshBasicMaterial({
+        color: SELECTED_COLOR,
+        transparent: true,
+        opacity: 0.5,
+        blending: THREE.AdditiveBlending
+    });
+    const pulseEffect = new THREE.Mesh(pulseGeometry, pulseMaterial);
+    marker.add(pulseEffect);
+    marker.pulseEffect = pulseEffect;
+
+    // Animate pulse with easing
+    function animatePulse() {
+        if (!marker.userData.isSelected) return;
+        const time = Date.now() * 0.002;
+        const scale = 1 + 0.7 * Math.sin(time) * Math.sin(time * 0.3);
+        pulseEffect.scale.set(scale, scale, scale);
+        pulseEffect.material.opacity = 0.4 + 0.3 * Math.sin(time * 0.5);
+        requestAnimationFrame(animatePulse);
+    }
+    animatePulse();
+
+    // Highlight connections
+    connectionArcs.forEach(arc => {
+        if (arc.userData.connectedIP === ip) {
+            arc.material.color.setHex(SELECTED_COLOR);
+            arc.material.opacity = 0.9;
+            arc.userData.targetWidth = SELECTED_CONNECTION_WIDTH;
+            arc.userData.isSelected = true;
+        }
+    });
+    
+    // Scroll to and highlight in side panel
+    if (window.highlightIPInSidePanel) {
+        window.highlightIPInSidePanel(ip);
+    }
+    
+    // Smoothly rotate globe to show selected marker
+    const targetRotation = calculateTargetRotation(marker.position);
+    targetRotationY = targetRotation.y;
+    targetRotationX = targetRotation.x;
+}
+
+
+// Add function to calculate target rotation
+function calculateTargetRotation(position) {
+    const vector = position.clone().normalize();
+    const y = Math.atan2(vector.x, vector.z);
+    const x = Math.atan2(vector.y, Math.sqrt(vector.x * vector.x + vector.z * vector.z));
+    return { x: -x, y: y };
+}
+
 // Create user marker (center point)
 function createUserMarker(position) {
-    const geometry = new THREE.SphereGeometry(0.03, 16, 16);
-    const material = new THREE.MeshBasicMaterial({
+    // Smaller user marker (reduced from 0.03 to 0.02)
+    const geometry = new THREE.SphereGeometry(0.02, 16, 16);
+    const material = new THREE.MeshPhongMaterial({
         color: 0x64ffda,
-        transparent: true,
-        opacity: 0.9
+        emissive: 0x1a5a4c,
+        emissiveIntensity: 0.5,
+        specular: 0x111111,
+        shininess: 30
     });
     const marker = new THREE.Mesh(geometry, material);
     marker.position.copy(position);
     
-    // Add pulse animation
-    const pulseGeometry = new THREE.SphereGeometry(0.05, 16, 16);
+    // Add pulse effect (smaller than before)
+    const pulseGeometry = new THREE.SphereGeometry(0.03, 16, 16);
     const pulseMaterial = new THREE.MeshBasicMaterial({
         color: 0x64ffda,
         transparent: true,
-        opacity: 0.5
+        opacity: 0.3,
+        side: THREE.BackSide
     });
     const pulse = new THREE.Mesh(pulseGeometry, pulseMaterial);
     marker.add(pulse);
@@ -245,7 +439,7 @@ function createUserMarker(position) {
 }
 
 // Create a curved connection line between two points
-function createConnectionArc(start, end) {
+function createConnectionArc(start, end, ip) {  // Add ip parameter
     if ([start.x, start.y, start.z, end.x, end.y, end.z].some(isNaN)) {
         console.error('Invalid positions for connection arc:', start, end);
         return null;
@@ -267,13 +461,18 @@ function createConnectionArc(start, end) {
     
     const geometry = new THREE.BufferGeometry().setFromPoints(points);
     const material = new THREE.LineBasicMaterial({
-        color: 0xff7b54,
+        color: DEFAULT_COLOR,
         transparent: true,
-        opacity: 0.6,
-        linewidth: 1
+        opacity: 0.6
     });
     
-    return new THREE.Line(geometry, material);
+    const line = new THREE.Line(geometry, material);
+    line.userData = {
+        isSelected: false,
+        connectedIP: ip
+    };
+    
+    return line;
 }
 
 // Add stars background
@@ -325,6 +524,8 @@ function addMouseControls() {
     let targetRotationY = 0;
     let rotationX = 0;
     let rotationY = 0;
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
 
     const container = document.getElementById('globe');
 
@@ -368,6 +569,22 @@ function addMouseControls() {
             globeGroup.rotation.y = rotationY;
         }
     }
+     container.addEventListener('click', (event) => {
+        // Calculate mouse position in normalized device coordinates
+        mouse.x = (event.clientX / container.clientWidth) * 2 - 1;
+        mouse.y = -(event.clientY / container.clientHeight) * 2 + 1;
+        
+        // Update the raycaster
+        raycaster.setFromCamera(mouse, camera);
+        
+        // Check for intersections with markers
+        const intersects = raycaster.intersectObjects(ipMarkers);
+        
+        if (intersects.length > 0) {
+            const marker = intersects[0].object;
+            marker.onClick();
+        }
+    });
 
     // Auto-rotation when not interacting
     let autoRotate = true;
@@ -395,6 +612,23 @@ function onWindowResize() {
 function animate() {
     animationId = requestAnimationFrame(animate);
     
+    // Handle marker scaling
+    ipMarkers.forEach(marker => {
+        if (marker.userData.targetScale) {
+            marker.scale.lerp(marker.userData.targetScale, 0.1);
+        }
+    });
+    
+    // Handle connection line width changes
+    connectionArcs.forEach(arc => {
+        if (arc.userData.targetWidth !== undefined) {
+            arc.material.linewidth = THREE.MathUtils.lerp(
+                arc.material.linewidth,
+                arc.userData.targetWidth,
+                0.1
+            );
+        }
+    });
     // Rotate the entire globe group which contains all elements
     if (globeGroup) {
         // Auto-rotate when not interacting
@@ -485,3 +719,10 @@ if (typeof THREE !== 'undefined') {
 } else {
     console.log('Waiting for Three.js to load');
 }
+
+window.selectIPOnGlobe = function(ip) {
+    const marker = ipMarkers.find(m => m.userData.ip === ip);
+    if (marker) {
+        selectMarker(marker, ip);
+    }
+};

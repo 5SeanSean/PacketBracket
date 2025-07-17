@@ -1,6 +1,31 @@
 {
   "dependencies": {
+    "@maxmind/geoip2-node": "^6.1.0",
+    "axios": "^1.10.0",
+    "cors": "^2.8.5",
     "dotenv": "^17.2.0",
+    "express": "^5.1.0",
     "three": "^0.178.0"
-  }
+  },
+  "name": "packetbracket",
+  "version": "1.0.0",
+  "description": "Phishing detector for OutLook",
+  "main": "index.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/5SeanSean/PacketBracket.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/5SeanSean/PacketBracket/issues"
+  },
+  "homepage": "https://github.com/5SeanSean/PacketBracket#readme"
 }

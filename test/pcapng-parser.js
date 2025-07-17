@@ -1,21 +1,23 @@
-import { geoApiKey, geoApiEndpoint } from './config.js';
+import { geoApiKey, geoApiEndpoint, fallback } from './config.js';
 
-// Keep the rest of your code
+
 class PcapngParser {
     constructor() {
         this.blocks = [];
         this.interfaces = [];
         this.packets = [];
         this.onProgress = null;
-        this.ipCache = {};
+        this.ipCache = JSON.parse(localStorage.getItem('ipGeolocationCache')) || {};
         this.uniqueIPs = new Set();
         this.ipPackets = new Map();
-        this.maxIPsToProcess = Infinity; // Process all IPs
+        this.maxIPsToProcess = Infinity;
         
-        // IPGeolocation.io API Configuration
+        // Primary API Configuration (IPGeolocation.io)
         this.geoApiKey = geoApiKey;
         this.geoApiEndpoint = geoApiEndpoint;
-        this.requestDelay = 10; // 1 second delay between requests
+        
+       
+        this.requestDelay = 100; // 100ms delay between requests
     }
 
     async parse(buffer) {
@@ -88,27 +90,26 @@ class PcapngParser {
         const srcIP = packet.ipv4.sourceIP;
         const dstIP = packet.ipv4.destinationIP;
         
-        // Track source IP
-        if (!this.uniqueIPs.has(srcIP)) {
+        // Initialize storage for new IPs
+        if (!this.ipPackets.has(srcIP)) {
+            this.ipPackets.set(srcIP, { incoming: [], outgoing: [] });
             this.uniqueIPs.add(srcIP);
-            this.ipPackets.set(srcIP, []);
         }
         
-        // Track destination IP
-        if (!this.uniqueIPs.has(dstIP)) {
+        if (!this.ipPackets.has(dstIP)) {
+            this.ipPackets.set(dstIP, { incoming: [], outgoing: [] });
             this.uniqueIPs.add(dstIP);
-            this.ipPackets.set(dstIP, []);
         }
 
-        // Add packet to source IP's list
-        this.ipPackets.get(srcIP).push({
+        // Add packet to source IP's outgoing
+        this.ipPackets.get(srcIP).outgoing.push({
             timestamp: packet.timestamp,
             protocol: packet.ipv4.protocolName,
             destination: dstIP
         });
 
-        // Add packet to destination IP's list
-        this.ipPackets.get(dstIP).push({
+        // Add packet to destination IP's incoming
+        this.ipPackets.get(dstIP).incoming.push({
             timestamp: packet.timestamp,
             protocol: packet.ipv4.protocolName,
             source: srcIP
@@ -122,7 +123,6 @@ class PcapngParser {
             const ip = uniqueIPsArray[i];
             
             if (this.isSpecialIP(ip)) {
-                // Skip API call for special IPs
                 if (this.isPrivateIP(ip)) {
                     this.ipCache[ip] = { isPrivate: true };
                 } else if (this.isMulticastIP(ip)) {
@@ -133,37 +133,99 @@ class PcapngParser {
                 continue;
             }
 
+            // Skip if we already have valid data for this IP
+            if (this.ipCache[ip] && !this.ipCache[ip].error) {
+                continue;
+            }
+
             try {
-                const url = `${this.geoApiEndpoint}?apiKey=${this.geoApiKey}&ip=${ip}`;
-                console.log("Fetching:", url); // Add this line
+                // Try primary API first
+                let locationData = await this.fetchWithPrimaryApi(ip);
                 
-                const response = await fetch(url);
-                console.log("Response status:", response.status); // Add this line
+                // If primary API fails, try fallback
+                if (locationData.error) {
+                    console.warn(`Primary API failed for ${ip}, trying fallback`);
+                    locationData = await this.fetchWithFallback(ip);
+                }
+
+                this.ipCache[ip] = locationData;
                 
-                if (response.ok) {
-                    const data = await response.json();
-                    this.ipCache[ip] = {
-                        country: data.country_name || 'Unknown',
-                        city: data.city || 'Unknown',
-                        region: data.state_prov || 'Unknown',
-                        isp: data.isp || 'Unknown',
-                        asn: data.asn || 'Unknown',
-                        latitude: parseFloat(data.latitude),
-                        longitude: parseFloat(data.longitude),
-                        mapUrl: data.latitude && data.longitude ? 
-                            `https://www.google.com/maps?q=${data.latitude},${data.longitude}` : null
-                    };
-                } else {
-                    const errorData = await response.json().catch(() => ({}));
-                    this.ipCache[ip] = { 
-                        error: errorData.message || `API Error: ${response.status} ${response.statusText}`
-                    };
+                // Save cache periodically
+                if (i % 10 === 0) {
+                    this.saveIpCache();
                 }
             } catch (error) {
+                console.error(`Error fetching location for ${ip}:`, error);
                 this.ipCache[ip] = { error: 'Failed to fetch location' };
             }
             
             await new Promise(resolve => setTimeout(resolve, this.requestDelay));
+        }
+        
+        // Final cache save
+        this.saveIpCache();
+    }
+
+    async fetchWithPrimaryApi(ip) {
+        try {
+            const url = `${this.geoApiEndpoint}?apiKey=${this.geoApiKey}&ip=${ip}`;
+            const response = await fetch(url);
+            
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                return { error: errorData.message || `API Error: ${response.status}` };
+            }
+            
+            const data = await response.json();
+            return {
+                country: data.country_name || 'Unknown',
+                city: data.city || 'Unknown',
+                region: data.state_prov || 'Unknown',
+                isp: data.isp || 'Unknown',
+                asn: data.asn || 'Unknown',
+                latitude: parseFloat(data.latitude) || 0,
+                longitude: parseFloat(data.longitude) || 0,
+                mapUrl: data.latitude && data.longitude ? 
+                    `https://www.google.com/maps?q=${data.latitude},${data.longitude}` : null
+            };
+        } catch (error) {
+            return { error: 'Primary API failed' };
+        }
+    }
+
+async fetchWithFallback(ip) {
+    try {
+        const response = await fetch(`${fallback}${ip}`);
+        
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            return { error: errorData.message || `Fallback API Error: ${response.status}` };
+        }
+        
+        const data = await response.json();
+        
+        // Map fallback API response to our expected format
+        return {
+            country: data.country || 'Unknown',
+            city: data.city || 'Unknown',
+            region: data.region || 'Unknown',
+            isp: data.connection?.isp || 'Unknown',
+            asn: data.connection?.autonomous_system_organization || 'Unknown',
+            latitude: data.latitude || 0,
+            longitude: data.longitude || 0,
+            mapUrl: data.latitude && data.longitude ? 
+                `https://www.google.com/maps?q=${data.latitude},${data.longitude}` : null
+        };
+    } catch (error) {
+        return { error: 'Fallback API failed' };
+    }
+}
+
+    saveIpCache() {
+        try {
+            localStorage.setItem('ipGeolocationCache', JSON.stringify(this.ipCache));
+        } catch (e) {
+            console.warn('Failed to save IP cache to localStorage', e);
         }
     }
 
@@ -417,4 +479,5 @@ class PcapngParser {
         };
     }
 }
+
 export default PcapngParser;
