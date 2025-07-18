@@ -34,11 +34,69 @@ body {
 }
 
 #globe {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
+    width: 100%;
+    height: 100%;
+    position: relative; /* or absolute/fixed if needed */
+    z-index: 1; /* Adjust if buttons are behind the canvas */
+}
+
+.viewport-controls {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 1000; /* Ensure it's above canvases */
+    pointer-events: auto; /* Make sure clicks work */
+}
+
+/* Globe Type Selector */
+.globe-type-selector {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    z-index: 100;
+    display: flex;
+    gap: 5px;
+}
+
+.globe-btn {
+    background: rgba(0, 0, 0, 0.7);
+    color: #00ff41;
+    border: 1px solid #00ff41;
+    padding: 5px 10px;
+    margin: 0 5px;
+    cursor: pointer;
+    font-family: monospace;
+}
+
+.globe-btn:hover {
+    background: rgba(0, 255, 65, 0.1);
+}
+
+.globe-btn.active {
+    background: #00ff41;
+    color: #000;
+}
+
+/* 2D Globe Canvas */
+#globe canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+
+#cleanGlobe {
+    margin-left: 10px;
+    background: rgba(255, 82, 82, 0.2);
+    border-color: #ff5252;
+}
+
+#cleanGlobe:hover {
+    background: rgba(255, 82, 82, 0.3);
+}
+
+#cleanGlobe:active {
+    background: rgba(255, 82, 82, 0.4);
 }
 
 /* Side Panel - Hacker Terminal */

@@ -13,6 +13,15 @@ const sidePanelScript = document.createElement('script');
 sidePanelScript.src = 'side-panel.js';
 document.head.appendChild(sidePanelScript);
 
+
+
+document.addEventListener('DOMContentLoaded', function() {
+    
+    //nothing for now, i might use this later
+});
+
+
+
 // Wait for DOM to be fully loaded before creating elements
 // Remove these lines from app.js (they're now in side-panel.js)
 // const uploadArea = document.getElementById('uploadArea');
@@ -65,17 +74,24 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
-// Load Three.js dynamically
+
 const threeScript = document.createElement('script');
 threeScript.src = 'https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js';
 document.head.appendChild(threeScript);
 
-// Load globe.js after Three.js is loaded
+// Load both globe scripts after Three.js is loaded
 threeScript.onload = () => {
+    // Load 3D globe first
     const globeScript = document.createElement('script');
     globeScript.src = 'globe.js';
     document.head.appendChild(globeScript);
+    
+    // Then load 2D globe
+    const globe2DScript = document.createElement('script');
+    globe2DScript.src = '2d-globe.js';
+    document.head.appendChild(globe2DScript);
 };
+
 
 
 
@@ -162,17 +178,19 @@ function displayResults(result, file) {
     // Display IP details in side panel
 
 if (window.displayIPDetails) {
-    window.displayIPDetails(ipData, result.ipPackets, file, {
-        totalPackets: summary.totalPackets,
-        ipv4Packets: result.packets.filter(p => p.ipv4 && !p.ipv4.error).length,
-        uniqueIPs: summary.uniqueIPs
-    });
-}
+        window.displayIPDetails(ipData, result.ipPackets, file, {
+            totalPackets: summary.totalPackets,
+            ipv4Packets: result.packets.filter(p => p.ipv4 && !p.ipv4.error).length,
+            uniqueIPs: summary.uniqueIPs
+        });
+    }
     
-    // Initialize globe with the IP data
-    if (window.initGlobe && ipData.length > 0) {
-        initGlobe(ipData);
-    } else if (ipData.length === 0) {
+    // Set IP data in viewport manager
+    if (window.viewportManager) {
+        window.viewportManager.setIPData(ipData);
+    }
+    
+    if (ipData.length === 0) {
         results.innerHTML += `<div class="error">No public IP addresses with geolocation data found</div>`;
     }
 }

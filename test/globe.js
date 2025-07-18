@@ -570,6 +570,9 @@ function addMouseControls() {
         }
     }
      container.addEventListener('click', (event) => {
+
+        if (!camera || !raycaster) return;
+        
         // Calculate mouse position in normalized device coordinates
         mouse.x = (event.clientX / container.clientWidth) * 2 - 1;
         mouse.y = -(event.clientY / container.clientHeight) * 2 + 1;
@@ -694,15 +697,34 @@ function showStatus(message, type = 'info') {
     }, 3000);
 }
 
-// Clean up resources
+
 function cleanupGlobe() {
     if (animationId) {
         cancelAnimationFrame(animationId);
+        animationId = null;
     }
     
     const container = document.getElementById('globe');
-    if (container && renderer) {
+    if (container && renderer && renderer.domElement) {
         container.removeChild(renderer.domElement);
+    }
+    
+    // Remove event listeners
+    window.removeEventListener('resize', onWindowResize);
+    
+    // Clean up Three.js objects
+    if (scene) {
+        scene.traverse(object => {
+            if (object.geometry) {
+                object.geometry.dispose();
+            }
+            if (object.material) {
+                if (object.material.map) object.material.map.dispose();
+                if (object.material.bumpMap) object.material.bumpMap.dispose();
+                if (object.material.specularMap) object.material.specularMap.dispose();
+                object.material.dispose();
+            }
+        });
     }
     
     scene = null;
