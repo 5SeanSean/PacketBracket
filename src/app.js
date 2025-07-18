@@ -12,7 +12,7 @@ const progressText = document.getElementById('progressText');
 let globeContainer;
 
 const sidePanelScript = document.createElement('script');
-sidePanelScript.src = 'side-panel.js';
+sidePanelScript.src = '/side-panel.js';
 document.head.appendChild(sidePanelScript);
 
 
@@ -85,12 +85,12 @@ document.head.appendChild(threeScript);
 threeScript.onload = () => {
     // Load 3D globe first
     const globeScript = document.createElement('script');
-    globeScript.src = 'globe.js';
+    globeScript.src = '/globe.js';
     document.head.appendChild(globeScript);
     
     // Then load 2D globe
     const globe2DScript = document.createElement('script');
-    globe2DScript.src = '2d-globe.js';
+    globe2DScript.src = '/2d-globe.js';
     document.head.appendChild(globe2DScript);
 };
 
