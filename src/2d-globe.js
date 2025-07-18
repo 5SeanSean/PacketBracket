@@ -103,7 +103,7 @@
             draw();
         };
         
-        backgroundImage.src = 'mercator.svg';
+        backgroundImage.src = 'src/mercator.svg';
     }
 
     function initMarkers(ipData) {
