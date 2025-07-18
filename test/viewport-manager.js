@@ -31,10 +31,12 @@ class ViewportManager {
     switchView(viewType) {
     if (this.currentView === viewType) return;
     
-    // Clean up current view
+    console.log(`Switching to ${viewType} view`); // Debug logging
+    
+    // Clean up current view more thoroughly
     this.cleanView(false);
     
-    // Update UI
+    // Update UI buttons
     document.getElementById('globe3D').classList.toggle('active', viewType === '3d');
     document.getElementById('globe2D').classList.toggle('active', viewType === '2d');
     
@@ -42,15 +44,26 @@ class ViewportManager {
     this.currentView = viewType;
     
     if (this.currentIPData && this.currentIPData.length > 0) {
-        if (viewType === '3d' && window.initGlobe) {
-            window.initGlobe(this.currentIPData);
-        } else if (viewType === '2d' && window.init2DGlobe) {
-            window.init2DGlobe(this.currentIPData);
-        }
+        // Small delay to ensure cleanup is complete
+        setTimeout(() => {
+            try {
+                if (viewType === '3d' && window.initGlobe) {
+                    console.log('Initializing 3D globe');
+                    window.initGlobe(this.currentIPData);
+                } else if (viewType === '2d' && window.init2DGlobe) {
+                    console.log('Initializing 2D map');
+                    window.init2DGlobe(this.currentIPData);
+                }
+            } catch (error) {
+                console.error('Error initializing view:', error);
+            }
+        }, 50);
     }
 }
+
+cleanView(fullClean = true) {
+    console.log('Cleaning current view'); // Debug logging
     
-    cleanView(fullClean = true) {
     // Clean up current view
     if (this.currentView === '3d' && window.cleanupGlobe) {
         window.cleanupGlobe();
@@ -58,15 +71,23 @@ class ViewportManager {
         window.cleanup2DGlobe();
     }
     
-    // Remove all canvases from the container
+    // More thorough container cleanup
     const container = document.getElementById('globe');
     if (container) {
-        const canvases = container.querySelectorAll('canvas');
-        canvases.forEach(canvas => {
-            if (container.contains(canvas)) {
-                container.removeChild(canvas);
+        // Remove all children except the controls
+        Array.from(container.children).forEach(child => {
+            if (!child.classList.contains('viewport-controls')) {
+                container.removeChild(child);
             }
         });
+        
+        // Force garbage collection by reducing size
+        container.style.width = '0';
+        container.style.height = '0';
+        setTimeout(() => {
+            container.style.width = '100%';
+            container.style.height = '100%';
+        }, 10);
     }
     
     if (fullClean) {

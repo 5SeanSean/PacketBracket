@@ -19,6 +19,18 @@
     const SCROLL_SPEED = 100;
     let isScrolling = false;
 
+    // Dragging state
+    let isDragging = false;
+    let lastDragX = 0;
+    let dragStartX = 0;
+
+    // Zoom state
+    let zoomLevel = 1;
+    const MIN_ZOOM = 1;
+    const MAX_ZOOM= 4;
+
+    const ZOOM_SENSITIVITY = 0.001;
+
     function init2DGlobe(ipData) {
         console.log('Initializing pixel map with IP data:', ipData);
         
@@ -67,7 +79,7 @@
     }
 
     function animate() {
-        if (isScrolling) {
+        if (isScrolling || isDragging) {
             draw();
         }
         requestAnimationFrame(animate);
@@ -120,7 +132,7 @@
             let newHoveredMarker = null;
             for (const marker of ipMarkers) {
                 const dist = Math.sqrt((mouseX - marker.x) ** 2 + (mouseY - marker.y) ** 2);
-                if (dist <= 8) {
+                if (dist <= 8 * zoomLevel) { // Scale hit area with zoom
                     newHoveredMarker = marker;
                     break;
                 }
@@ -128,13 +140,24 @@
 
             if (hoveredMarker !== newHoveredMarker) {
                 hoveredMarker = newHoveredMarker;
-                canvas.style.cursor = hoveredMarker ? 'pointer' : 'default';
+                canvas.style.cursor = hoveredMarker ? 'pointer' : isDragging ? 'grabbing' : 'grab';
                 draw();
+            }
+
+            // Handle dragging
+            if (isDragging) {
+                const dx = e.clientX - lastDragX;
+                scrollOffset -= dx / zoomLevel;
+                lastDragX = e.clientX;
             }
         });
 
         // Marker selection
         canvas.addEventListener('click', (e) => {
+            if (Math.abs(e.clientX - dragStartX) > 5) {
+                return; // Ignore click if it was part of a drag
+            }
+
             const rect = canvas.getBoundingClientRect();
             const mouseX = e.clientX - rect.left;
             const mouseY = e.clientY - rect.top;
@@ -142,7 +165,7 @@
             // Find clicked marker
             for (const marker of ipMarkers) {
                 const dist = Math.sqrt((mouseX - marker.x) ** 2 + (mouseY - marker.y) ** 2);
-                if (dist <= 8) {
+                if (dist <= 8 * zoomLevel) {
                     selectMarker(marker);
                     return;
                 }
@@ -151,6 +174,24 @@
             // Deselect if clicking elsewhere
             if (selectedMarker) {
                 deselectMarker();
+            }
+        });
+
+        // Drag start
+        canvas.addEventListener('mousedown', (e) => {
+            if (e.button === 0) { // Left mouse button
+                isDragging = true;
+                lastDragX = e.clientX;
+                dragStartX = e.clientX;
+                canvas.style.cursor = 'grabbing';
+            }
+        });
+
+        // Drag end
+        window.addEventListener('mouseup', () => {
+            if (isDragging) {
+                isDragging = false;
+                canvas.style.cursor = hoveredMarker ? 'pointer' : 'grab';
             }
         });
 
@@ -163,11 +204,11 @@
         // Keyboard controls for scrolling
         window.addEventListener('keydown', (e) => {
             if (e.key === 'ArrowLeft') {
-                scrollOffset -= SCROLL_SPEED;
+                scrollOffset -= SCROLL_SPEED / zoomLevel;
                 isScrolling = true;
                 e.preventDefault();
             } else if (e.key === 'ArrowRight') {
-                scrollOffset += SCROLL_SPEED;
+                scrollOffset += SCROLL_SPEED / zoomLevel;
                 isScrolling = true;
                 e.preventDefault();
             }
@@ -177,6 +218,30 @@
             if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
                 isScrolling = false;
             }
+        });
+
+        // Mouse wheel zoom
+        canvas.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            
+            // Get mouse position relative to canvas
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            
+            // Calculate mouse position in world coordinates before zoom
+            const worldX = (mouseX + scrollOffset) / zoomLevel;
+            
+            // Update zoom level
+            const zoomFactor = 1 - e.deltaY * ZOOM_SENSITIVITY;
+            
+            zoomLevel = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoomLevel * zoomFactor));
+            
+            // Calculate new scroll offset to zoom at mouse position
+            
+            const newWorldX = mouseX + scrollOffset;
+            scrollOffset = newWorldX - worldX * zoomLevel;
+            
+            draw();
         });
     }
 
@@ -189,30 +254,36 @@
         ctx.fillRect(0, 0, width, height);
         
         // Calculate dimensions to maintain aspect ratio (fit height)
-        const drawWidth = height * SVG_ASPECT;
-        const drawHeight = height;
+        const drawWidth = height * SVG_ASPECT * zoomLevel;
+        const drawHeight = height * zoomLevel;
         
         // Handle world wrapping (looping)
         const worldWidth = drawWidth;
         scrollOffset = scrollOffset % worldWidth;
         if (scrollOffset < 0) scrollOffset += worldWidth;
         
+        // Save context before applying transformations
+        ctx.save();
+        
+        // Apply zoom by scaling the context
+        ctx.scale(zoomLevel, zoomLevel);
+        
         // Draw background image if loaded
         if (isBackgroundLoaded) {
             // Draw two copies of the map for seamless looping
-            const firstX = -scrollOffset % worldWidth;
+            const firstX = -scrollOffset / zoomLevel % worldWidth;
             const secondX = firstX + worldWidth;
             
             // First copy
             ctx.drawImage(backgroundImage, firstX, 0, drawWidth, drawHeight);
             
             // Second copy for looping effect
-            if (firstX + drawWidth > width) {
+            if (firstX + drawWidth > width / zoomLevel) {
                 ctx.drawImage(backgroundImage, firstX - worldWidth, 0, drawWidth, drawHeight);
             }
             
             // Third copy if needed
-            if (secondX < width) {
+            if (secondX < width / zoomLevel) {
                 ctx.drawImage(backgroundImage, secondX, 0, drawWidth, drawHeight);
             }
         } else {
@@ -221,9 +292,12 @@
         }
         
         // Draw markers
-        drawMarkers(width, height, -scrollOffset, 0, drawWidth, drawHeight);
+        drawMarkers(width, height, -scrollOffset / zoomLevel, 0, drawWidth, drawHeight);
         
-        // Draw hover/selection effects
+        // Restore context before drawing effects
+        ctx.restore();
+        
+        // Draw hover/selection effects (in screen space)
         drawEffects();
     }
 
@@ -266,8 +340,8 @@
             
             // Handle world wrapping for markers
             for (let i = -1; i <= 1; i++) {
-                marker.x = markerX + i * worldWidth;
-                marker.y = markerY;
+                marker.x = (markerX + i * worldWidth) * zoomLevel;
+                marker.y = markerY * zoomLevel;
                 
                 // Only draw markers that are visible
                 if (marker.x >= -20 && marker.x <= width + 20 && 
@@ -275,13 +349,13 @@
                     
                     const isSelected = selectedMarker && selectedMarker.ip === marker.ip;
                     const isHovered = hoveredMarker && hoveredMarker.ip === marker.ip;
-                    const size = isSelected ? 8 : (isHovered ? 6 : 4);
+                    const size = (isSelected ? 8 : (isHovered ? 6 : 4)) * zoomLevel;
                     const color = isSelected ? selectedColor : markerColor;
                     
                     // Draw marker
                     ctx.fillStyle = color;
                     ctx.beginPath();
-                    ctx.arc(marker.x, marker.y, size, 0, Math.PI * 2);
+                    ctx.arc(marker.x / zoomLevel, marker.y / zoomLevel, size / zoomLevel, 0, Math.PI * 2);
                     ctx.fill();
                 }
             }

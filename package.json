@@ -27,5 +27,8 @@
   "bugs": {
     "url": "https://github.com/5SeanSean/PacketBracket/issues"
   },
-  "homepage": "https://github.com/5SeanSean/PacketBracket#readme"
+  "homepage": "https://github.com/5SeanSean/PacketBracket#readme",
+  "devDependencies": {
+    "webpack-cli": "^6.0.1"
+  }
 }
