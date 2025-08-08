@@ -24,28 +24,39 @@ body {
   flex-direction: row;
 }
 
-/* Globe Container - Full Viewport */
 .globe-container {
   flex: 1;
   position: relative;
   background: #000;
   order: 1;
   overflow: hidden;
+  min-height: 100vh;
+  min-width: 50vw;
+}
+
+#globe-background {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  pointer-events: none;
 }
 
 #globe {
-    width: 100%;
-    height: 100%;
-    position: relative; /* or absolute/fixed if needed */
-    z-index: 1; /* Adjust if buttons are behind the canvas */
+  position: relative;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
 }
 
 .viewport-controls {
     position: absolute;
     top: 10px;
     right: 10px;
-    z-index: 1000; /* Ensure it's above canvases */
-    pointer-events: auto; /* Make sure clicks work */
+    z-index: 1000;
+    pointer-events: auto;
 }
 
 /* Globe Type Selector */
@@ -83,7 +94,6 @@ body {
     height: 100%;
     display: block;
 }
-
 
 #cleanGlobe {
     margin-left: 10px;
@@ -237,6 +247,7 @@ body {
   font-size: 1em;
   font-weight: bold;
 }
+
 /* Selected states */
 .ip-card.selected {
   background: rgba(0, 255, 65, 0.1);
@@ -253,7 +264,6 @@ body {
   background-color: var(--hacker-green);
   box-shadow: 0 0 10px var(--hacker-green);
   transition: all 0.3s ease;
-  
 }
 
 .globe-marker.selected {
@@ -283,18 +293,8 @@ body {
 }
 
 @keyframes pulse {
-  0% {
-    transform: scale(1);
-    opacity: 0.7;
-  }
-  70% {
-    transform: scale(1.5);
-    opacity: 0;
-  }
-  100% {
-    transform: scale(1);
-    opacity: 0;
-  }
+  0%, 100% { opacity: 0.2; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.5); }
 }
 
 .location-info {
@@ -402,4 +402,23 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--hacker-green);
+}
+
+/* FaultyTerminal styles */
+.faulty-terminal-container {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: hidden;
+}
+
+.faulty-terminal-container canvas {
+  width: 100% !important;
+  height: 100% !important;
+  display: block !important;
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
 }

@@ -1,8 +1,6 @@
 import PcapngParser from './pcapng-parser.js';
 
-
 // File handling with progress
-
 const results = document.getElementById('results');
 const progressContainer = document.getElementById('progressContainer');
 const progressFill = document.getElementById('progressFill');
@@ -15,21 +13,6 @@ const sidePanelScript = document.createElement('script');
 sidePanelScript.src = 'src/side-panel.js';
 document.head.appendChild(sidePanelScript);
 
-
-
-document.addEventListener('DOMContentLoaded', function() {
-    
-    //nothing for now, i might use this later
-});
-
-
-
-// Wait for DOM to be fully loaded before creating elements
-// Remove these lines from app.js (they're now in side-panel.js)
-// const uploadArea = document.getElementById('uploadArea');
-// const fileInput = document.getElementById('fileInput');
-
-// Update the event listeners to use the side panel elements
 document.addEventListener('DOMContentLoaded', function() {
     const globeContainer = document.getElementById('globe');
     
@@ -37,7 +20,6 @@ document.addEventListener('DOMContentLoaded', function() {
     globeContainer.style.width = globeContainer.style.height; // Make it square
     globeContainer.style.position = 'relative';
     globeContainer.style.overflow = 'hidden'; // Hide overflow
-    
     
     // Move progress container to be centered in globe
     const progressContainer = document.getElementById('progressContainer');
@@ -76,7 +58,6 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
-
 const threeScript = document.createElement('script');
 threeScript.src = 'https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js';
 document.head.appendChild(threeScript);
@@ -93,9 +74,6 @@ threeScript.onload = () => {
     globe2DScript.src = 'src/2d-globe.js';
     document.head.appendChild(globe2DScript);
 };
-
-
-
 
 async function handleFile(file) {
     if (!file) return;
@@ -178,8 +156,7 @@ function displayResults(result, file) {
     });
     
     // Display IP details in side panel
-
-if (window.displayIPDetails) {
+    if (window.displayIPDetails) {
         window.displayIPDetails(ipData, result.ipPackets, file, {
             totalPackets: summary.totalPackets,
             ipv4Packets: result.packets.filter(p => p.ipv4 && !p.ipv4.error).length,
@@ -188,8 +165,8 @@ if (window.displayIPDetails) {
     }
     
     // Set IP data in viewport manager
-if (window.viewportManager) {
-        window.viewportManager.setIPData(ipData, result.ipPackets); // Pass ipPackets
+    if (window.viewportManager) {
+        window.viewportManager.setIPData(ipData, result.ipPackets);
     }
     
     if (ipData.length === 0) {
