@@ -192,8 +192,8 @@ function initGlobe(ipData, ipPackets) {
         pointLight.position.set(0, 0, 5);
         scene.add(pointLight);
 
-        // Add stars background
-        addStars();
+       
+        
 
         // Add mouse controls
         addMouseControls();
@@ -459,23 +459,7 @@ function createConnectionArc(start, end, ip) {  // Add ip parameter
     return line;
 }
 
-// Add stars background
-function addStars() {
-    const starsGeometry = new THREE.BufferGeometry();
-    const starsMaterial = new THREE.PointsMaterial({ color: 0xffffff, size: 0.5 });
 
-    const starsVertices = [];
-    for (let i = 0; i < 10000; i++) {
-        const x = (Math.random() - 0.5) * 2000;
-        const y = (Math.random() - 0.5) * 2000;
-        const z = (Math.random() - 0.5) * 2000;
-        starsVertices.push(x, y, z);
-    }
-
-    starsGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starsVertices, 3));
-    const stars = new THREE.Points(starsGeometry, starsMaterial);
-    scene.add(stars);
-}
 
 // Convert latitude/longitude to 3D vector
 function latLonToVector3(lat, lon, radius) {
