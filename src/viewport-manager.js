@@ -95,15 +95,16 @@ cleanView(fullClean = true) {
     }
 }
     
-    setIPData(ipData) {
-        this.currentIPData = ipData;
-        
-        if (this.currentView === '3d' && window.initGlobe) {
-            window.initGlobe(ipData);
-        } else if (this.currentView === '2d' && window.init2DGlobe) {
-            window.init2DGlobe(ipData);
-        }
+setIPData(ipData, ipPackets) {
+    this.currentIPData = ipData;
+    this.currentIPPackets = ipPackets; // Store ipPackets
+    
+    if (this.currentView === '3d' && window.initGlobe) {
+        window.initGlobe(ipData, ipPackets); // Pass ipPackets
+    } else if (this.currentView === '2d' && window.init2DGlobe) {
+        window.init2DGlobe(ipData, ipPackets); // Pass ipPackets
     }
+}
 }
 
 // Initialize when DOM is ready

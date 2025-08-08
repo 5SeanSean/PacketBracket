@@ -188,8 +188,8 @@ if (window.displayIPDetails) {
     }
     
     // Set IP data in viewport manager
-    if (window.viewportManager) {
-        window.viewportManager.setIPData(ipData);
+if (window.viewportManager) {
+        window.viewportManager.setIPData(ipData, result.ipPackets); // Pass ipPackets
     }
     
     if (ipData.length === 0) {
