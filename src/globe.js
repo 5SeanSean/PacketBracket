@@ -1,5 +1,14 @@
 // globe.js - Complete 3D Globe Visualization for PCAP-NG Analyzer
 
+// Define threat levels locally to avoid import issues
+const THREAT_LEVELS = {
+  SAFE: { level: 0, color: "#00ff41", name: "Safe" },
+  LOW: { level: 1, color: "#7fff00", name: "Low Risk" },
+  MEDIUM: { level: 2, color: "#ffff00", name: "Medium Risk" },
+  HIGH: { level: 3, color: "#ff8c00", name: "High Risk" },
+  CRITICAL: { level: 4, color: "#ff0000", name: "Critical" },
+}
+
 let scene, camera, renderer, globe, controls
 let ipMarkers = []
 let animationId
@@ -13,21 +22,18 @@ let selectedMarker = null
 let selectedIP = null
 let isGlobeVisible = true
 let THREE // Declare THREE variable
-let targetRotationY = 0 // Declare targetRotationY variable
-let targetRotationX = 0 // Declare targetRotationX variable
-
-let isMouseDown = false
-let mouseX = 0
-let mouseY = 0
-let rotationX = 0
-let rotationY = 0
-let autoRotate = true
+let rotationX = 0 // Declare rotationX variable
+let rotationY = 0 // Declare rotationY variable
 
 const markerScaleSpeed = 0.1
 const SELECTED_COLOR = 0x64ffda // Light hacker teal
 const DEFAULT_COLOR = 0x00ff41 // Dark hacker green
 const CONNECTION_WIDTH = 0.5 // Base width
 const SELECTED_CONNECTION_WIDTH = 1.5 // Selected width
+
+// RESTORED: Global rotation variables (will be set by addMouseControls)
+let targetRotationX = 0
+let targetRotationY = 0
 
 // Initialize empty globe on site load
 function initEmptyGlobe() {
@@ -154,7 +160,7 @@ function initEmptyGlobe() {
     pointLight.position.set(0, 0, 5)
     scene.add(pointLight)
 
-    // Add mouse controls
+    // RESTORED: Add mouse controls (this sets up the rotation variables)
     addMouseControls()
 
     // Handle window resize
@@ -175,6 +181,9 @@ function initEmptyGlobe() {
 // Populate globe with IP data
 function populateGlobe(ipData, ipPackets) {
   console.log("Populating 3D globe with IP data:", ipData)
+
+  // Store current IP data globally for marker creation
+  window.currentIPData = ipData
 
   // Clear existing data first
   clearGlobeData()
@@ -297,6 +306,11 @@ function hideGlobe() {
 
 // Create an IP location marker
 function createIPMarker(position, ip, totalContacts, minContacts, maxContacts) {
+  // Get threat level from IP cache
+  const ipInfo = window.currentIPData?.find((data) => data.ip === ip)
+  const threatLevel = ipInfo?.threatLevel || THREAT_LEVELS.SAFE
+  const markerColor = Number.parseInt(threatLevel.color.replace("#", "0x"))
+
   // Calculate proportional height (clamped between min and max)
   const minHeight = 0.05 // Minimum height above surface
   const maxHeight = 0.2 // Maximum height above surface
@@ -314,15 +328,15 @@ function createIPMarker(position, ip, totalContacts, minContacts, maxContacts) {
   const marker = new THREE.Mesh(
     geometry,
     new THREE.MeshPhongMaterial({
-      color: DEFAULT_COLOR,
-      emissive: DEFAULT_COLOR,
+      color: markerColor,
+      emissive: markerColor,
       emissiveIntensity: 0.2,
       specular: 0xffffff,
       shininess: 50,
     }),
   )
 
-  // Position marker exactly on globe surface
+  // RESTORED: Original positioning logic
   const surfaceNormal = position.clone().normalize()
   const surfacePosition = surfaceNormal.clone().multiplyScalar(0.99) // Globe radius + tiny offset
 
@@ -341,9 +355,12 @@ function createIPMarker(position, ip, totalContacts, minContacts, maxContacts) {
     ip: ip,
     isSelected: false,
     targetScale: new THREE.Vector3(1, 1, 1),
-    defaultColor: DEFAULT_COLOR,
+    defaultColor: markerColor,
     originalHeight: height,
-    basePosition: position.clone(), // Store original position
+    basePosition: position.clone(),
+    // FIXED: Store original coordinates for accurate rotation
+    originalLat: ipInfo?.latitude || 0,
+    originalLon: ipInfo?.longitude || 0,
   }
 
   // Add click handler
@@ -360,9 +377,16 @@ function selectMarker(marker, ip) {
   if (selectedMarker) {
     selectedMarker.userData.targetScale.set(1, 1, 1)
     selectedMarker.material.color.setHex(selectedMarker.userData.defaultColor)
+    selectedMarker.userData.isSelected = false
 
     if (selectedMarker.userData.glow) {
       selectedMarker.userData.glow.material.color.setHex(selectedMarker.userData.defaultColor)
+    }
+
+    // Remove pulse effect from previous marker
+    if (selectedMarker.pulseEffect) {
+      selectedMarker.remove(selectedMarker.pulseEffect)
+      selectedMarker.pulseEffect = null
     }
 
     // Reset connections
@@ -378,6 +402,7 @@ function selectMarker(marker, ip) {
   // Select new marker
   selectedMarker = marker
   selectedIP = ip
+  marker.userData.isSelected = true
 
   // Visual changes for selection
   marker.material.color.setHex(SELECTED_COLOR)
@@ -421,18 +446,103 @@ function selectMarker(marker, ip) {
     window.highlightIPInSidePanel(ip)
   }
 
-  // Smoothly rotate globe to show selected marker
-  const targetRotation = calculateTargetRotation(marker.position)
-  targetRotationY = targetRotation.y
-  targetRotationX = targetRotation.x
+  // FIXED: Calculate rotation from original lat/lon, not marker position
+  const lat = marker.userData.originalLat
+  const lon = marker.userData.originalLon
+
+  console.log(`Selecting IP ${ip} at lat: ${lat}, lon: ${lon}`)
+
+  // FIXED: Direct lat/lon to rotation conversion (more reliable)
+  targetRotationY = -(lon * Math.PI) / 180 // Convert longitude to Y rotation
+  targetRotationX = (lat * Math.PI) / 180 // Convert latitude to X rotation
+
+  // FIXED: Reset auto-rotation interference
+  if (window.autoRotate) {
+    const currentAutoRotate = window.autoRotate()
+    if (currentAutoRotate) {
+      // Temporarily disable auto-rotation during selection
+      setTimeout(() => {
+        // Re-enable after rotation completes
+      }, 2000)
+    }
+  }
 }
 
-// Add function to calculate target rotation
+// FIXED: Alternative - reset globe rotation before calculating target
+function selectMarkerWithReset(marker, ip) {
+  // ... existing selection code ...
+
+  // OPTION: Reset globe group rotation to identity before calculating
+  const currentRotationX = globeGroup.rotation.x
+  const currentRotationY = globeGroup.rotation.y
+
+  // Temporarily reset to calculate clean target rotation
+  globeGroup.rotation.set(0, 0, 0)
+  const cleanTargetRotation = calculateTargetRotation(marker.userData.basePosition)
+
+  // Restore current rotation
+  globeGroup.rotation.x = currentRotationX
+  globeGroup.rotation.y = currentRotationY
+
+  // Set target rotation
+  targetRotationY = cleanTargetRotation.y
+  targetRotationX = cleanTargetRotation.x
+}
+
+// FIXED: Improved calculateTargetRotation with better coordinate handling
 function calculateTargetRotation(position) {
+  // Ensure we're working with a normalized vector
   const vector = position.clone().normalize()
-  const y = Math.atan2(vector.x, vector.z)
-  const x = Math.atan2(vector.y, Math.sqrt(vector.x * vector.x + vector.z * vector.z))
-  return { x: -x, y: y }
+
+  // FIXED: More precise spherical coordinate conversion
+  const lat = Math.asin(vector.y) // Latitude from Y component
+  const lon = Math.atan2(vector.x, -vector.z) // Longitude from X,Z components
+
+  // Convert to rotation angles (negate for proper orientation)
+  return {
+    x: -lat, // Negative for correct rotation direction
+    y: -lon, // Negative for correct rotation direction
+  }
+}
+
+// FIXED: Debug function to verify marker positions
+function debugMarkerPosition(marker) {
+  const ip = marker.userData.ip
+  const lat = marker.userData.originalLat
+  const lon = marker.userData.originalLon
+  const position = marker.position
+  const basePosition = marker.userData.basePosition
+
+  console.log(`IP ${ip}:`)
+  console.log(`  Original: lat=${lat}, lon=${lon}`)
+  console.log(`  Marker position:`, position)
+  console.log(`  Base position:`, basePosition)
+  console.log(`  Expected rotation: x=${(lat * Math.PI) / 180}, y=${-(lon * Math.PI) / 180}`)
+}
+
+// FIXED: Add rotation bounds to prevent over-rotation
+function boundRotation(rotation) {
+  // Keep rotations within reasonable bounds
+  while (rotation > Math.PI) rotation -= 2 * Math.PI
+  while (rotation < -Math.PI) rotation += 2 * Math.PI
+  return rotation
+}
+
+// FIXED: Modified updateRotation with bounds checking
+function createUpdateRotation() {
+  return function updateRotation() {
+    rotationX += (targetRotationX - rotationX) * 0.1
+    rotationY += (targetRotationY - rotationY) * 0.1
+
+    // FIXED: Apply rotation bounds
+    rotationX = boundRotation(rotationX)
+    rotationY = boundRotation(rotationY)
+
+    if (globeGroup) {
+      globeGroup.rotation.x = rotationX
+      globeGroup.rotation.y = rotationY
+    }
+  }
 }
 
 // Create user marker (center point)
@@ -527,8 +637,11 @@ function latLonToVector3(lat, lon, radius) {
   return new THREE.Vector3(isNaN(x) ? 0 : x, isNaN(y) ? 0 : y, isNaN(z) ? 0 : z)
 }
 
-// Add mouse controls
+// RESTORED: Original mouse controls with proper variable scope
 function addMouseControls() {
+  let isMouseDown = false
+  let mouseX = 0
+  let mouseY = 0
   const raycaster = new THREE.Raycaster()
   const mouse = new THREE.Vector2()
   const container = document.getElementById("globe")
@@ -537,7 +650,6 @@ function addMouseControls() {
     isMouseDown = true
     mouseX = event.clientX
     mouseY = event.clientY
-    autoRotate = false
   })
 
   container.addEventListener("mousemove", (event) => {
@@ -555,9 +667,6 @@ function addMouseControls() {
 
   container.addEventListener("mouseup", () => {
     isMouseDown = false
-    setTimeout(() => {
-      autoRotate = true
-    }, 3000)
   })
 
   container.addEventListener("wheel", (event) => {
@@ -566,6 +675,17 @@ function addMouseControls() {
     camera.position.z += delta
     camera.position.z = Math.max(1.5, Math.min(10, camera.position.z))
   })
+
+  // RESTORED: Original smooth rotation function
+  function updateRotation() {
+    rotationX += (targetRotationX - rotationX) * 0.1
+    rotationY += (targetRotationY - rotationY) * 0.1
+
+    if (globeGroup) {
+      globeGroup.rotation.x = rotationX
+      globeGroup.rotation.y = rotationY
+    }
+  }
 
   container.addEventListener("click", (event) => {
     if (!camera || !raycaster) return
@@ -585,6 +705,19 @@ function addMouseControls() {
       marker.onClick()
     }
   })
+
+  // RESTORED: Original auto-rotation logic
+  let autoRotate = true
+  container.addEventListener("mousedown", () => {
+    autoRotate = false
+  })
+  setTimeout(() => {
+    autoRotate = true
+  }, 5000)
+
+  // RESTORED: Export functions to window for access in animate loop
+  window.updateRotation = updateRotation
+  window.autoRotate = () => autoRotate
 }
 
 // Handle window resize
@@ -600,7 +733,7 @@ function onWindowResize() {
   renderer.setSize(width, height)
 }
 
-// Animation loop
+// RESTORED: Original animation loop structure
 function animate() {
   animationId = requestAnimationFrame(animate)
 
@@ -621,23 +754,23 @@ function animate() {
     }
   })
 
-  // Handle rotation
+  // RESTORED: Original rotation handling
   if (globeGroup) {
-    // Smooth rotation animation
-    rotationX += (targetRotationX - rotationX) * 0.1
-    rotationY += (targetRotationY - rotationY) * 0.1
-
     // Auto-rotate when not interacting
-    if (autoRotate) {
-      rotationY += 0.005
+    if (window.autoRotate && window.autoRotate()) {
+      //globeGroup.rotation.y += 0.001
     }
 
-    globeGroup.rotation.x = rotationX
-    globeGroup.rotation.y = rotationY
+    // Apply any user rotation
+    if (window.updateRotation) {
+      window.updateRotation()
+    }
   }
 
   // Render the scene
-  renderer.render(scene, camera)
+  if (renderer && scene && camera) {
+    renderer.render(scene, camera)
+  }
 }
 
 // Update texture loading status

@@ -13,6 +13,11 @@ const sidePanelScript = document.createElement("script")
 sidePanelScript.src = "src/side-panel.js"
 document.head.appendChild(sidePanelScript)
 
+// Add coordinate display script
+const coordDisplayScript = document.createElement("script")
+coordDisplayScript.src = "src/coordinate-display.js"
+document.head.appendChild(coordDisplayScript)
+
 document.addEventListener("DOMContentLoaded", () => {
   const globeContainer = document.getElementById("globe")
 
@@ -23,39 +28,45 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Move progress container to be centered in globe
   const progressContainer = document.getElementById("progressContainer")
-  progressContainer.style.position = "absolute"
-  progressContainer.style.top = "50%"
-  progressContainer.style.left = "50%"
-  progressContainer.style.transform = "translate(-50%, -50%)"
-  progressContainer.style.zIndex = "100"
+  if (progressContainer) {
+    progressContainer.style.position = "absolute"
+    progressContainer.style.top = "50%"
+    progressContainer.style.left = "50%"
+    progressContainer.style.transform = "translate(-50%, -50%)"
+    progressContainer.style.zIndex = "100"
+  }
 
   const uploadArea = document.getElementById("uploadArea")
   const fileInput = document.getElementById("fileInput")
 
-  // Add event listeners for file upload
-  uploadArea.addEventListener("dragover", (e) => {
-    e.preventDefault()
-    uploadArea.classList.add("dragover")
-  })
+  // Add event listeners for file upload only if elements exist
+  if (uploadArea) {
+    uploadArea.addEventListener("dragover", (e) => {
+      e.preventDefault()
+      uploadArea.classList.add("dragover")
+    })
 
-  uploadArea.addEventListener("dragleave", () => {
-    uploadArea.classList.remove("dragover")
-  })
+    uploadArea.addEventListener("dragleave", () => {
+      uploadArea.classList.remove("dragover")
+    })
 
-  uploadArea.addEventListener("drop", (e) => {
-    e.preventDefault()
-    uploadArea.classList.remove("dragover")
-    const files = e.dataTransfer.files
-    if (files.length > 0) {
-      handleFile(files[0])
-    }
-  })
+    uploadArea.addEventListener("drop", (e) => {
+      e.preventDefault()
+      uploadArea.classList.remove("dragover")
+      const files = e.dataTransfer.files
+      if (files.length > 0) {
+        handleFile(files[0])
+      }
+    })
+  }
 
-  fileInput.addEventListener("change", (e) => {
-    if (e.target.files.length > 0) {
-      handleFile(e.target.files[0])
-    }
-  })
+  if (fileInput) {
+    fileInput.addEventListener("change", (e) => {
+      if (e.target.files.length > 0) {
+        handleFile(e.target.files[0])
+      }
+    })
+  }
 })
 
 const threeScript = document.createElement("script")
@@ -67,6 +78,7 @@ threeScript.onload = () => {
   // Load 3D globe first
   const globeScript = document.createElement("script")
   globeScript.src = "src/globe.js"
+  globeScript.type = "module" // Add module type
   document.head.appendChild(globeScript)
 
   // Then load 2D globe
@@ -80,9 +92,9 @@ async function handleFile(file) {
 
   console.log("Handling file:", file.name, file.size, "bytes")
 
-  results.innerHTML = ""
-  progressContainer.style.display = "block"
-  progressText.textContent = "Reading file..."
+  if (results) results.innerHTML = ""
+  if (progressContainer) progressContainer.style.display = "block"
+  if (progressText) progressText.textContent = "Reading file..."
 
   const reader = new FileReader()
   reader.onload = async (e) => {
@@ -91,23 +103,23 @@ async function handleFile(file) {
 
       parser.onProgress = (offset, total, blockCount) => {
         const percent = (offset / total) * 100
-        progressFill.style.width = percent + "%"
-        progressText.textContent = `Parsing... ${Math.round(percent)}% (${blockCount} blocks)`
+        if (progressFill) progressFill.style.width = percent + "%"
+        if (progressText) progressText.textContent = `Parsing... ${Math.round(percent)}% (${blockCount} blocks)`
       }
 
       const result = await parser.parse(e.target.result)
-      progressContainer.style.display = "none"
+      if (progressContainer) progressContainer.style.display = "none"
       displayResults(result, file)
     } catch (error) {
-      progressContainer.style.display = "none"
+      if (progressContainer) progressContainer.style.display = "none"
       console.error("Parse error:", error)
-      results.innerHTML = `<div class="error">❌ Error parsing file: ${error.message}</div>`
+      if (results) results.innerHTML = `<div class="error">❌ Error parsing file: ${error.message}</div>`
     }
   }
 
   reader.onerror = () => {
-    progressContainer.style.display = "none"
-    results.innerHTML = `<div class="error">❌ Error reading file</div>`
+    if (progressContainer) progressContainer.style.display = "none"
+    if (results) results.innerHTML = `<div class="error">❌ Error reading file</div>`
   }
 
   reader.readAsArrayBuffer(file)
@@ -134,7 +146,7 @@ function displayResults(result, file) {
     html += `<div class="error">No IPv4 packets found in this capture</div>`
   }
 
-  fileSummary.innerHTML = html
+  if (fileSummary) fileSummary.innerHTML = html
 
   // Prepare data for globe visualization
   const ipData = []
@@ -151,6 +163,14 @@ function displayResults(result, file) {
         latitude: location.latitude,
         longitude: location.longitude,
         packets: result.ipPackets.get(ip),
+        // Add security data
+        threatLevel: location.threatLevel,
+        security: location.security,
+        flag: location.flag,
+        isp: location.isp,
+        asn: location.asn,
+        asnNumber: location.asnNumber,
+        mapUrl: location.mapUrl,
       })
     }
   })
@@ -170,6 +190,6 @@ function displayResults(result, file) {
   }
 
   if (ipData.length === 0) {
-    results.innerHTML += `<div class="error">No public IP addresses with geolocation data found</div>`
+    if (results) results.innerHTML += `<div class="error">No public IP addresses with geolocation data found</div>`
   }
 }
