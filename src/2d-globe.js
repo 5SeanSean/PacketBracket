@@ -383,6 +383,12 @@
       const markerX = offsetX + svgX * scaleX
       const markerY = offsetY + svgY * scaleY
 
+      // Get threat level color
+      const ipInfo = window.currentIPData?.find((data) => data.ip === marker.ip)
+      const threatLevel = ipInfo?.threatLevel || { color: "#00ff41" }
+      const markerColor = threatLevel.color
+      const selectedColor = "#64ffda"
+
       // Handle world wrapping for markers
       for (let i = -1; i <= 1; i++) {
         marker.x = (markerX + i * worldWidth) * zoomLevel
