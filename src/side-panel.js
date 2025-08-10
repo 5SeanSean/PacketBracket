@@ -86,6 +86,8 @@ window.displayIPDetails = (ipData, ipPackets, file, summary) => {
     ipCard.className = "ip-card"
     ipCard.style.borderLeftColor = threatLevel.color
 
+
+
     ipCard.innerHTML = `
             <h3 style="color: ${threatLevel.color}">
                 ${ipInfo.flag || "🏳️"} ${ipInfo.ip}
@@ -94,20 +96,17 @@ window.displayIPDetails = (ipData, ipPackets, file, summary) => {
                 </span>
             </h3>
             <div class="location-info">
+                <div><strong>Coordinates:</strong> ${ipInfo.latitude.toFixed(4)}°, ${ipInfo.longitude.toFixed(4)}°</div>
                 <div><strong>Location:</strong> ${ipInfo.city || "Unknown"}, ${ipInfo.region || "Unknown"}, ${ipInfo.country || "Unknown"}</div>
                 <div><strong>ISP:</strong> ${ipInfo.isp || "Unknown"}</div>
                 <div><strong>ASN:</strong> (${ipInfo.asn || "Unknown"})</div>
                 ${ipInfo.mapUrl ? `<a href="${ipInfo.mapUrl}" target="_blank" class="map-link">📍 View on Map</a>` : ""}
             </div>
-            ${
-              securityFlags.length > 0
-                ? `
+            ${securityFlags.length > 0 ? `
                 <div class="security-flags" style="margin: 10px 0; padding: 8px; background: rgba(255, 0, 0, 0.1); border-left: 3px solid #ff5252;">
                     <strong>🚨 Security Flags:</strong> ${securityFlags.join(", ")}
                 </div>
-            `
-                : ""
-            }
+            ` : ""}
             <div class="info-grid">
                 <div class="info-item"><strong>Total Packets:</strong> ${total}</div>
                 <div class="info-item"><strong>Incoming:</strong> ${incoming}</div>
@@ -117,8 +116,7 @@ window.displayIPDetails = (ipData, ipPackets, file, summary) => {
             <div class="protocols">
                 <strong>Protocols:</strong> ${getProtocolsSummary(packets)}
             </div>
-        `
-
+        `;
     // Add click handler
     ipCard.addEventListener("click", () => {
       // Highlight in side panel
