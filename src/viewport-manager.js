@@ -58,6 +58,11 @@ class ViewportManager {
     } catch (error) {
       console.error("Error initializing globes:", error)
     }
+    if (window.exampleData) {
+  const ipData = window.exampleData.getIPDataForGlobe();
+  const ipPackets = window.exampleData.getIPPacketsForGlobe();
+  this.setIPData(ipData, ipPackets);
+}
   }
 
   waitForLibraries() {

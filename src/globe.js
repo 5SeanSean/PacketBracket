@@ -24,6 +24,10 @@ let isGlobeVisible = true
 let THREE // Declare THREE variable
 let rotationX = 0 // Declare rotationX variable
 let rotationY = 0 // Declare rotationY variable
+let coordinateDisplay = null;
+
+const LAT_OFFSET = 0;   // Latitude of Panama (bridge between Americas)
+const LONG_OFFSET = -90; // Longitude of Panama
 
 const markerScaleSpeed = 0.1
 const SELECTED_COLOR = 0x64ffda // Light hacker teal
@@ -75,6 +79,7 @@ function initEmptyGlobe() {
     renderer.shadowMap.enabled = true
     renderer.shadowMap.type = THREE.PCFSoftShadowMap
     container.appendChild(renderer.domElement)
+    
 
     // Create a group for the globe and its children
     globeGroup = new THREE.Group()
@@ -176,6 +181,7 @@ function initEmptyGlobe() {
     showStatus("Failed to initialize 3D globe: " + error.message, "error")
     return false
   }
+
 }
 
 // Populate globe with IP data
@@ -304,6 +310,8 @@ function hideGlobe() {
   }
 }
 
+
+
 // Create an IP location marker
 function createIPMarker(position, ip, totalContacts, minContacts, maxContacts) {
   // Get threat level from IP cache
@@ -375,95 +383,99 @@ function createIPMarker(position, ip, totalContacts, minContacts, maxContacts) {
 function selectMarker(marker, ip) {
   // Deselect previous
   if (selectedMarker) {
-    selectedMarker.userData.targetScale.set(1, 1, 1)
-    selectedMarker.material.color.setHex(selectedMarker.userData.defaultColor)
-    selectedMarker.userData.isSelected = false
+    selectedMarker.userData.targetScale.set(1, 1, 1);
+    selectedMarker.material.color.setHex(selectedMarker.userData.defaultColor);
+    selectedMarker.userData.isSelected = false;
 
     if (selectedMarker.userData.glow) {
-      selectedMarker.userData.glow.material.color.setHex(selectedMarker.userData.defaultColor)
+      selectedMarker.userData.glow.material.color.setHex(selectedMarker.userData.defaultColor);
     }
 
     // Remove pulse effect from previous marker
     if (selectedMarker.pulseEffect) {
-      selectedMarker.remove(selectedMarker.pulseEffect)
-      selectedMarker.pulseEffect = null
+      selectedMarker.remove(selectedMarker.pulseEffect);
+      selectedMarker.pulseEffect = null;
     }
 
     // Reset connections
     connectionArcs.forEach((arc) => {
       if (arc.userData.isSelected) {
-        arc.material.color.setHex(DEFAULT_COLOR)
-        arc.material.opacity = 0.6
-        arc.userData.isSelected = false
+        arc.material.color.setHex(DEFAULT_COLOR);
+        arc.material.opacity = 0.6;
+        arc.userData.isSelected = false;
       }
-    })
+    });
   }
 
   // Select new marker
-  selectedMarker = marker
-  selectedIP = ip
-  marker.userData.isSelected = true
+  selectedMarker = marker;
+  selectedIP = ip;
+  marker.userData.isSelected = true;
 
   // Visual changes for selection
-  marker.material.color.setHex(SELECTED_COLOR)
-  marker.userData.targetScale.set(1.5, 1.5, 1.5) // Scale uniformly
+  marker.material.color.setHex(SELECTED_COLOR);
+  marker.userData.targetScale.set(1.5, 1.5, 1.5); // Scale uniformly
 
   // Add pulse ring effect
-  const pulseGeometry = new THREE.RingGeometry(0.015, 0.025, 32)
+  const pulseGeometry = new THREE.RingGeometry(0.015, 0.025, 32);
   const pulseMaterial = new THREE.MeshBasicMaterial({
     color: SELECTED_COLOR,
     transparent: true,
     opacity: 0.5,
     side: THREE.DoubleSide,
-  })
-  const pulseEffect = new THREE.Mesh(pulseGeometry, pulseMaterial)
-  pulseEffect.rotateX(-Math.PI / 2)
-  marker.add(pulseEffect)
-  marker.pulseEffect = pulseEffect
+  });
+  const pulseEffect = new THREE.Mesh(pulseGeometry, pulseMaterial);
+  pulseEffect.rotateX(-Math.PI / 2);
+  marker.add(pulseEffect);
+  marker.pulseEffect = pulseEffect;
 
   // Animate pulse
   function animatePulse() {
-    if (!marker.userData.isSelected) return
-    const time = Date.now() * 0.002
-    const scale = 1 + 0.5 * Math.sin(time)
-    pulseEffect.scale.set(scale, scale, scale)
-    pulseEffect.material.opacity = 0.4 + 0.3 * Math.sin(time * 0.5)
-    requestAnimationFrame(animatePulse)
+    if (!marker.userData.isSelected) return;
+    const time = Date.now() * 0.002;
+    const scale = 1 + 0.5 * Math.sin(time);
+    pulseEffect.scale.set(scale, scale, scale);
+    pulseEffect.material.opacity = 0.4 + 0.3 * Math.sin(time * 0.5);
+    requestAnimationFrame(animatePulse);
   }
-  animatePulse()
+  animatePulse();
 
   // Highlight connections
   connectionArcs.forEach((arc) => {
     if (arc.userData.connectedIP === ip) {
-      arc.material.color.setHex(SELECTED_COLOR)
-      arc.material.opacity = 0.8
-      arc.userData.isSelected = true
+      arc.material.color.setHex(SELECTED_COLOR);
+      arc.material.opacity = 0.8;
+      arc.userData.isSelected = true;
     }
-  })
+  });
 
   // Scroll to and highlight in side panel
   if (window.highlightIPInSidePanel) {
-    window.highlightIPInSidePanel(ip)
+    window.highlightIPInSidePanel(ip);
   }
 
-  // FIXED: Calculate rotation from original lat/lon, not marker position
-  const lat = marker.userData.originalLat
-  const lon = marker.userData.originalLon
+  const lat = marker.userData.originalLat;
+  const lon = marker.userData.originalLon;
+  
+  console.log(`Selecting IP ${ip} at lat: ${lat}, lon: ${lon}`);
 
-  console.log(`Selecting IP ${ip} at lat: ${lat}, lon: ${lon}`)
-
-  // FIXED: Direct lat/lon to rotation conversion (more reliable)
-  targetRotationY = -(lon * Math.PI) / 180 // Convert longitude to Y rotation
-  targetRotationX = (lat * Math.PI) / 180 // Convert latitude to X rotation
+  // Calculate the absolute rotation needed to bring the selected location to the front
+  // Note: We need to negate the longitude because Three.js uses left-handed coordinates
+  targetRotationY = -(lon * Math.PI) / 180;
+  targetRotationX = (lat * Math.PI) / 180;
+  
+  // Adjust for the initial Panama-centered position
+  targetRotationY += (LONG_OFFSET * Math.PI) / 180;
+  targetRotationX -= (LAT_OFFSET * Math.PI) / 180;
 
   // FIXED: Reset auto-rotation interference
   if (window.autoRotate) {
-    const currentAutoRotate = window.autoRotate()
+    const currentAutoRotate = window.autoRotate();
     if (currentAutoRotate) {
       // Temporarily disable auto-rotation during selection
       setTimeout(() => {
         // Re-enable after rotation completes
-      }, 2000)
+      }, 2000);
     }
   }
 }
@@ -505,20 +517,7 @@ function calculateTargetRotation(position) {
   }
 }
 
-// FIXED: Debug function to verify marker positions
-function debugMarkerPosition(marker) {
-  const ip = marker.userData.ip
-  const lat = marker.userData.originalLat
-  const lon = marker.userData.originalLon
-  const position = marker.position
-  const basePosition = marker.userData.basePosition
 
-  console.log(`IP ${ip}:`)
-  console.log(`  Original: lat=${lat}, lon=${lon}`)
-  console.log(`  Marker position:`, position)
-  console.log(`  Base position:`, basePosition)
-  console.log(`  Expected rotation: x=${(lat * Math.PI) / 180}, y=${-(lon * Math.PI) / 180}`)
-}
 
 // FIXED: Add rotation bounds to prevent over-rotation
 function boundRotation(rotation) {
@@ -735,41 +734,61 @@ function onWindowResize() {
 
 // RESTORED: Original animation loop structure
 function animate() {
-  animationId = requestAnimationFrame(animate)
+  animationId = requestAnimationFrame(animate);
 
   // Only render if globe is visible and properly initialized
-  if (!isGlobeVisible || !globeGroup || !renderer || !scene || !camera) return
+  if (!isGlobeVisible || !globeGroup || !renderer || !scene || !camera) return;
+
+  // Update rotation
+  if (window.updateRotation) {
+    window.updateRotation();
+  }
 
   // Handle marker scaling
   ipMarkers.forEach((marker) => {
     if (marker.userData.targetScale) {
-      marker.scale.lerp(marker.userData.targetScale, 0.1)
+      marker.scale.lerp(marker.userData.targetScale, 0.1);
     }
-  })
+  });
 
   // Handle connection line width changes
   connectionArcs.forEach((arc) => {
     if (arc.userData.targetWidth !== undefined) {
-      arc.material.linewidth = THREE.MathUtils.lerp(arc.material.linewidth, arc.userData.targetWidth, 0.1)
+      arc.material.linewidth = THREE.MathUtils.lerp(arc.material.linewidth, arc.userData.targetWidth, 0.1);
     }
-  })
-
-  // RESTORED: Original rotation handling
-  if (globeGroup) {
-    // Auto-rotate when not interacting
-    if (window.autoRotate && window.autoRotate()) {
-      //globeGroup.rotation.y += 0.001
-    }
-
-    // Apply any user rotation
-    if (window.updateRotation) {
-      window.updateRotation()
-    }
-  }
+  });
 
   // Render the scene
-  if (renderer && scene && camera) {
-    renderer.render(scene, camera)
+  renderer.render(scene, camera);
+  updateCoordinateDisplay();
+}
+
+function vector3ToLatLon(vector) {
+  // Convert from 3D position to spherical coordinates
+  const radius = Math.sqrt(vector.x * vector.x + vector.y * vector.y + vector.z * vector.z);
+  const theta = Math.atan2(vector.z, -vector.x); // longitude
+  const phi = Math.acos(vector.y / radius); // latitude
+  
+  // Convert to degrees
+  const lat = 90 - (phi * 180 / Math.PI);
+  const lon = (theta * 180 / Math.PI);
+  
+  return { lat, lon };
+}
+function updateCoordinateDisplay() {
+  if (!coordinateDisplay || !camera || !globe) return;
+  
+  // Create a ray from camera through center of screen
+  const raycaster = new THREE.Raycaster();
+  raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+  
+  // Check for intersection with globe
+  const intersects = raycaster.intersectObject(globe);
+  
+  if (intersects.length > 0) {
+    const point = intersects[0].point;
+    const latLon = vector3ToLatLon(point);
+    coordinateDisplay.textContent = `Lat: ${latLon.lat.toFixed(2)}°, Lon: ${latLon.lon.toFixed(2)}°`;
   }
 }
 
@@ -829,7 +848,10 @@ function cleanupGlobe() {
   if (container && renderer && renderer.domElement) {
     container.removeChild(renderer.domElement)
   }
-
+  if (coordinateDisplay && coordinateDisplay.parentNode) {
+    coordinateDisplay.parentNode.removeChild(coordinateDisplay);
+    coordinateDisplay = null;
+  }
   // Remove event listeners
   window.removeEventListener("resize", onWindowResize)
 
