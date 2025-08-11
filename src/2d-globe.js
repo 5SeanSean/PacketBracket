@@ -1,4 +1,3 @@
-// 2d-globe.js - Simplified AmCharts implementation
 ;(() => {
   let chart;
   let root;
@@ -6,6 +5,7 @@
   let currentMarkers = [];
   let selectedMarker = null;
   let hoveredMarker = null;
+  let isZoomedIn = false;
 
   // Initialize empty 2D globe on site load
   function initEmpty2DGlobe() {
@@ -41,20 +41,24 @@
     // Create the map chart with zoom control and padding
     chart = root.container.children.push(am5map.MapChart.new(root, {
       projection: am5map.geoMercator(),
-      panX: "none", // Disable horizontal pan
-      panY: "none", // Disable vertical pan
-      wheelX: "none", // Disable horizontal zoom with wheel
-      wheelY: "none", // Disable vertical zoom with wheel
-      maxZoomLevel: 2, // Limit maximum zoom out
-      minZoomLevel: 10, // Limit minimum zoom in
-      zoomLevel: 1.5, // Initial zoom level
-      homeZoomLevel: 1.5, // Default zoom level
-      homeGeoPoint: { longitude: 0, latitude: 0 }, // Center on equator
+      panX: "translateX",
+      panY: "translateY",
+      wheelX: "zoomX",
+      wheelY: "zoomY",
+      maxZoomLevel: 64,
+      minZoomLevel: 1,
+      zoomLevel: 1.5,
+      homeZoomLevel: 1.5,
+      homeGeoPoint: { longitude: 0, latitude: 0 },
       paddingTop: 0,
       paddingBottom: 0,
       paddingLeft: 0,
       paddingRight: 0
     }));
+
+    // Enable inertia for smoother panning
+    chart.set("interactionsEnabled", true);
+    chart.set("mouseWheelBehavior", "zoom");
 
     // Create series for background fill
     var backgroundSeries = chart.series.push(am5map.MapPolygonSeries.new(root, {}));
@@ -80,6 +84,13 @@
       fillOpacity: 0.2,
       stroke: am5.color(0x00ff41),
       strokeOpacity: 0.3
+    });
+
+    // Add graticule (grid lines)
+    var graticuleSeries = chart.series.push(am5map.GraticuleSeries.new(root, {}));
+    graticuleSeries.mapLines.template.setAll({
+      stroke: am5.color(0x00ff41),
+      strokeOpacity: 0.08
     });
 
     // Create point series for markers
@@ -132,14 +143,13 @@
       });
     });
 
-    // Center the map vertically
+    // Center the map and set initial zoom
     chart.appear(1000, 100).then(function() {
       chart.zoomToGeoPoint({ longitude: 0, latitude: 0 }, 1.5, true);
     });
 
     console.log("AmCharts 2D globe initialized successfully");
   }
-
   // Populate 2D globe with IP data
   function populate2DGlobe(ipData, ipPackets) {
     console.log("Populating 2D globe with IP data:", ipData);
@@ -338,7 +348,6 @@
     hoveredMarker = null;
   }
 
-  // Export functions
   window.initEmpty2DGlobe = initEmpty2DGlobe;
   window.populate2DGlobe = populate2DGlobe;
   window.clear2DGlobeData = clear2DGlobeData;

@@ -13,18 +13,15 @@ const sidePanelScript = document.createElement("script")
 sidePanelScript.src = "src/side-panel.js"
 document.head.appendChild(sidePanelScript)
 
-// Add coordinate display script
-const coordDisplayScript = document.createElement("script")
-coordDisplayScript.src = "src/coordinate-display.js"
-document.head.appendChild(coordDisplayScript)
+
 
 document.addEventListener("DOMContentLoaded", () => {
   const globeContainer = document.getElementById("globe")
 
   globeContainer.style.height = "100vh" // Full viewport height
-  globeContainer.style.width = globeContainer.style.height // Make it square
+  globeContainer.style.width = "auto" // Make it square
   globeContainer.style.position = "relative"
-  globeContainer.style.overflow = "hidden" // Hide overflow
+  globeContainer.style.overflow = "visible" // Hide overflow
 if (window.exampleData && window.displayIPDetails) {
     const ipData = window.exampleData.getIPDataForGlobe();
     const ipPackets = window.exampleData.getIPPacketsForGlobe();
