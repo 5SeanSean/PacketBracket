@@ -29,9 +29,10 @@ body {
   position: relative;
   background: #000;
   order: 1;
-  overflow: hidden;
+  overflow: visible;
   min-height: 100vh;
   min-width: 50vw;
+  max-width: 70vh;
 }
 
 #globe-background {
