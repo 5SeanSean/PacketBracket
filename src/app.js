@@ -6,7 +6,7 @@ const progressContainer = document.getElementById("progressContainer")
 const progressFill = document.getElementById("progressFill")
 const progressText = document.getElementById("progressText")
 
-// Create globe container - moved to DOMContentLoaded event
+// Create globe container 
 let globeContainer
 
 const sidePanelScript = document.createElement("script")
