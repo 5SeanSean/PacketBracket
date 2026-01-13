@@ -170,6 +170,18 @@
       showStatus("No valid geolocation data available", "error");
       return;
     }
+    const userIP = validIPs.find(ip => 
+    ip.threatLevel && ip.threatLevel.level === 0
+  );
+
+   if (userIP && chart) {
+    chart.goHome(); // Reset view
+    chart.zoomToGeoPoint(
+      { longitude: userIP.longitude, latitude: userIP.latitude }, 
+      2.5, // Zoom level
+      true // Animate
+    );
+  }
 
     // Add markers to the map
     validIPs.forEach(ip => {

@@ -82,19 +82,9 @@ window.displayIPDetails = (ipData, ipPackets, file, summary) => {
     if (security.is_mobile) securityFlags.push("Mobile")
     if (security.is_abuse) securityFlags.push("⚠️ Abuse")
 
-    const isUserIP = threatLevel.level === 0 && 
-                     ipInfo.ip !== "0.0.0.0" && 
-                     (ipInfo.security?.is_vpn === false || !ipInfo.security?.is_vpn);
-
-    const ipCard = document.createElement("div");
-    ipCard.className = `ip-card ${isUserIP ? 'user-ip' : ''}`;
-    ipCard.style.borderLeftColor = threatLevel.color;
-
-    // Add user badge if it's the user's IP
-    const userBadge = isUserIP ? 
-      '<span class="user-badge" style="background: #64ffda; color: #000; padding: 2px 8px; border-radius: 3px; font-size: 0.7em; margin-left: 10px;">👤 You</span>' : 
-      '';
-
+    const ipCard = document.createElement("div")
+    ipCard.className = "ip-card"
+    ipCard.style.borderLeftColor = threatLevel.color
 
     ipCard.innerHTML = `
             <h3 style="color: ${threatLevel.color}">
@@ -110,11 +100,15 @@ window.displayIPDetails = (ipData, ipPackets, file, summary) => {
                 <div><strong>ASN:</strong> (${ipInfo.asn || "Unknown"})</div>
                 ${ipInfo.mapUrl ? `<a href="${ipInfo.mapUrl}" target="_blank" class="map-link">📍 View on Map</a>` : ""}
             </div>
-            ${securityFlags.length > 0 ? `
+            ${
+              securityFlags.length > 0
+                ? `
                 <div class="security-flags" style="margin: 10px 0; padding: 8px; background: rgba(255, 0, 0, 0.1); border-left: 3px solid #ff5252;">
                     <strong>🚨 Security Flags:</strong> ${securityFlags.join(", ")}
                 </div>
-            ` : ""}
+            `
+                : ""
+            }
             <div class="info-grid">
                 <div class="info-item"><strong>Total Packets:</strong> ${total}</div>
                 <div class="info-item"><strong>Incoming:</strong> ${incoming}</div>
@@ -124,7 +118,7 @@ window.displayIPDetails = (ipData, ipPackets, file, summary) => {
             <div class="protocols">
                 <strong>Protocols:</strong> ${getProtocolsSummary(packets)}
             </div>
-        `;
+        `
     // Add click handler
     ipCard.addEventListener("click", () => {
       // Highlight in side panel
