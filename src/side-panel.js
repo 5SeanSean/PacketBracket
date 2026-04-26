@@ -108,7 +108,7 @@ window.displayIPDetails = (ipData, ipPackets, file, summary) => {
                 <div><strong>Location:</strong> ${ipInfo.city || "Unknown"}, ${ipInfo.region || "Unknown"}, ${ipInfo.country || "Unknown"}</div>
                 <div><strong>ISP:</strong> ${ipInfo.isp || "Unknown"}</div>
                 <div><strong>ASN:</strong> (${ipInfo.asn || "Unknown"})</div>
-                ${ipInfo.mapUrl ? `<a href="${ipInfo.mapUrl}" target="_blank" class="map-link">📍 View on Map</a>` : ""}
+                ${ipInfo.mapUrl ? `<a href="${ipInfo.mapUrl}" target="_blank" class="map-link">View on Map</a>` : ""}
             </div>
             ${securityFlags.length > 0 ? `
                 <div class="security-flags" style="margin: 10px 0; padding: 8px; background: rgba(255, 0, 0, 0.1); border-left: 3px solid #ff5252;">
