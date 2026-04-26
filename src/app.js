@@ -118,13 +118,13 @@ async function handleFile(file) {
     } catch (error) {
       if (progressContainer) progressContainer.style.display = "none"
       console.error("Parse error:", error)
-      if (results) results.innerHTML = `<div class="error">❌ Error parsing file: ${error.message}</div>`
+      if (results) results.innerHTML = `<div class="error">Error parsing file: ${error.message}</div>`
     }
   }
 
   reader.onerror = () => {
     if (progressContainer) progressContainer.style.display = "none"
-    if (results) results.innerHTML = `<div class="error">❌ Error reading file</div>`
+    if (results) results.innerHTML = `<div class="error">Error reading file</div>`
   }
 
   reader.readAsArrayBuffer(file)
