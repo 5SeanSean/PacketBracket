@@ -80,7 +80,7 @@ window.displayIPDetails = (ipData, ipPackets, file, summary) => {
     if (security.is_hosting) securityFlags.push("Hosting")
     if (security.is_relay) securityFlags.push("Relay")
     if (security.is_mobile) securityFlags.push("Mobile")
-    if (security.is_abuse) securityFlags.push("⚠️ Abuse")
+    if (security.is_abuse) securityFlags.push("Abuse")
 
     const isUserIP = threatLevel.level === 0 && 
                      ipInfo.ip !== "0.0.0.0" && 
@@ -112,7 +112,7 @@ window.displayIPDetails = (ipData, ipPackets, file, summary) => {
             </div>
             ${securityFlags.length > 0 ? `
                 <div class="security-flags" style="margin: 10px 0; padding: 8px; background: rgba(255, 0, 0, 0.1); border-left: 3px solid #ff5252;">
-                    <strong>🚨 Security Flags:</strong> ${securityFlags.join(", ")}
+                    <strong>Security Flags:</strong> ${securityFlags.join(", ")}
                 </div>
             ` : ""}
             <div class="info-grid">
