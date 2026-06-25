@@ -1,5 +1,7 @@
 // side-panel.js - Handles the side panel display of IP details
 
+let _selectedIP = null
+
 // Initialize the side panel
 function initSidePanel() {
   const sidePanel = document.createElement("div")
@@ -13,6 +15,7 @@ function initSidePanel() {
             </button>
         </div>
         <div id="fileSummary"></div>
+        <div id="liveCaptureBtn" style="margin-top:10px;"></div>
     </div>
     <div class="ip-list-container">
         <h2>IP Address Details</h2>
@@ -27,10 +30,10 @@ function initSidePanel() {
   }
 }
 
-// Add this function to highlight IP in side panel
+// Highlight a card in the side panel (called by globe/map clicks)
 window.highlightIPInSidePanel = (ip) => {
-  const ipCards = document.querySelectorAll(".ip-card")
-  ipCards.forEach((card) => {
+  _selectedIP = ip
+  document.querySelectorAll(".ip-card").forEach((card) => {
     card.classList.remove("selected")
     const ipHeader = card.querySelector("h3")
     if (ipHeader && ipHeader.textContent.includes(ip)) {
@@ -38,6 +41,14 @@ window.highlightIPInSidePanel = (ip) => {
       card.scrollIntoView({ behavior: "smooth", block: "nearest" })
     }
   })
+}
+
+// Central coordinator — call this from anywhere to select an IP across all views
+window.selectIP = (ip) => {
+  _selectedIP = ip
+  window.highlightIPInSidePanel(ip)
+  if (window.selectIPOnGlobe) window.selectIPOnGlobe(ip)
+  if (window.selectIPOn2DGlobe) window.selectIPOn2DGlobe(ip)
 }
 
 window.displayIPDetails = (ipData, ipPackets, file, summary) => {
@@ -127,18 +138,27 @@ window.displayIPDetails = (ipData, ipPackets, file, summary) => {
         `;
     // Add click handler
     ipCard.addEventListener("click", () => {
-      // Highlight in side panel
-      document.querySelectorAll(".ip-card").forEach((c) => c.classList.remove("selected"))
-      ipCard.classList.add("selected")
-
-      // Select on globe
-      if (window.selectIPOnGlobe) {
-        window.selectIPOnGlobe(ipInfo.ip)
-      }
+      window.selectIP(ipInfo.ip)
     })
 
     ipDetails.appendChild(ipCard)
   })
+
+  // Reapply sticky selection after re-render
+  if (_selectedIP) {
+    document.querySelectorAll(".ip-card").forEach((card) => {
+      const h = card.querySelector("h3")
+      if (h && h.textContent.includes(_selectedIP)) card.classList.add("selected")
+    })
+  }
+
+  // Click outside any card to deselect
+  ipDetails.addEventListener("click", (e) => {
+    if (!e.target.closest(".ip-card")) {
+      _selectedIP = null
+      document.querySelectorAll(".ip-card").forEach((c) => c.classList.remove("selected"))
+    }
+  }, { capture: false })
 }
 
 function getProtocolsSummary(packets) {

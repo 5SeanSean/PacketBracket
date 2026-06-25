@@ -1,3 +1,4 @@
+/* eslint-disable no-undef */
 // src/pcapng-parser.js
 
 // Define threat levels locally to avoid import issues

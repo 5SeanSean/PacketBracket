@@ -1,369 +1,263 @@
 ;(() => {
-  let chart;
-  let root;
-  let pointSeries;
-  let currentMarkers = [];
-  let selectedMarker = null;
-  let hoveredMarker = null;
-  let isZoomedIn = false;
+  let map = null
+  let ipLayerGroup = null
+  let userMarker = null
+  let selectedMarker = null
+  let mapDiv = null
 
-  // Initialize empty 2D globe on site load
+  const TILE_URL = "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+  const TILE_ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>'
+
   function initEmpty2DGlobe() {
-    console.log("Initializing empty 2D globe with AmCharts...");
+    const container = document.getElementById("globe")
 
-    const container = document.getElementById("globe");
-    
-    // Create chart container
-    const chartDiv = document.createElement("div");
-    chartDiv.id = "amchart-map";
-    chartDiv.style.width = "100%";
-    chartDiv.style.height = "100%";
-    chartDiv.style.position = "absolute";
-    chartDiv.style.top = "0";
-    chartDiv.style.left = "0";
-    chartDiv.style.display = "none"; // Hidden by default
-    container.appendChild(chartDiv);
+    mapDiv = document.createElement("div")
+    mapDiv.id = "leaflet-map"
+    mapDiv.style.cssText = "width:100%;height:100%;position:absolute;top:0;left:0;display:none;"
+    container.appendChild(mapDiv)
 
-    // Initialize chart
-    initializeAmChart();
+    map = L.map("leaflet-map", {
+      center: [20, 0],
+      zoom: 2,
+      minZoom: 2,
+      maxZoom: 18,
+      zoomControl: true,
+      attributionControl: true,
+      maxBounds: [[-85, -180], [85, 180]],
+      maxBoundsViscosity: 1.0,
+    })
+
+    L.tileLayer(TILE_URL, {
+      attribution: TILE_ATTR,
+      subdomains: "abcd",
+      maxZoom: 19,
+    }).addTo(map)
+
+    ipLayerGroup = L.layerGroup().addTo(map)
+
+    // Override leaflet attribution box style to match theme
+    const attrEl = document.querySelector(".leaflet-control-attribution")
+    if (attrEl) {
+      attrEl.style.cssText = "background:rgba(13,2,8,0.8);color:#555;font-size:10px;border-top:1px solid #008f11;"
+    }
+
+    console.log("Leaflet 2D map initialized")
   }
 
-  // Initialize AmChart
-  function initializeAmChart() {
-    // Create root element
-    root = am5.Root.new("amchart-map");
-
-    // Set themes
-    root.setThemes([
-      am5themes_Animated.new(root)
-    ]);
-
-    // Create the map chart with zoom control and padding
-    chart = root.container.children.push(am5map.MapChart.new(root, {
-      projection: am5map.geoMercator(),
-      panX: "translateX",
-      panY: "translateY",
-      wheelX: "zoomX",
-      wheelY: "zoomY",
-      maxZoomLevel: 64,
-      minZoomLevel: 1,
-      zoomLevel: 1.5,
-      homeZoomLevel: 1.5,
-      homeGeoPoint: { longitude: 0, latitude: 0 },
-      paddingTop: 0,
-      paddingBottom: 0,
-      paddingLeft: 0,
-      paddingRight: 0
-    }));
-
-    // Enable inertia for smoother panning
-    chart.set("interactionsEnabled", true);
-    chart.set("mouseWheelBehavior", "zoom");
-
-    // Create series for background fill
-    var backgroundSeries = chart.series.push(am5map.MapPolygonSeries.new(root, {}));
-    backgroundSeries.mapPolygons.template.setAll({
-      fill: am5.color(0x0d0208),
-      fillOpacity: 0.1,
-      stroke: am5.color(0x00ff41),
-      strokeOpacity: 0.2
-    });
-
-    // Add background polygon
-    backgroundSeries.data.push({
-      geometry: am5map.getGeoRectangle(90, 180, -90, -180)
-    });
-
-    // Create main polygon series for countries
-    var polygonSeries = chart.series.push(am5map.MapPolygonSeries.new(root, {
-      geoJSON: am5geodata_worldLow
-    }));
-    
-    polygonSeries.mapPolygons.template.setAll({
-      fill: am5.color(0x0d0208),
-      fillOpacity: 0.2,
-      stroke: am5.color(0x00ff41),
-      strokeOpacity: 0.3
-    });
-
-    // Add graticule (grid lines)
-    var graticuleSeries = chart.series.push(am5map.GraticuleSeries.new(root, {}));
-    graticuleSeries.mapLines.template.setAll({
-      stroke: am5.color(0x00ff41),
-      strokeOpacity: 0.08
-    });
-
-    // Create point series for markers
-    pointSeries = chart.series.push(am5map.MapPointSeries.new(root, {}));
-
-    // Configure marker template
-    pointSeries.bullets.push(function() {
-      var circle = am5.Circle.new(root, {
-        radius: 5,
-        tooltipY: 0,
-        fill: am5.color(0x00ff41),
-        stroke: am5.color(0x0d0208),
-        strokeWidth: 2,
-        cursorOverStyle: "pointer"
-      });
-
-      // Add hover state
-      circle.states.create("hover", {
-        radius: 7,
-        fill: am5.color(0x64ffda)
-      });
-
-      // Add selected state
-      circle.states.create("selected", {
-        radius: 8,
-        fill: am5.color(0x64ffda)
-      });
-
-      // Handle click events
-      circle.events.on("click", function(ev) {
-        const dataItem = ev.target.dataItem;
-        selectMarker(dataItem);
-      });
-
-      // Handle pointerover events
-      circle.events.on("pointerover", function(ev) {
-        const dataItem = ev.target.dataItem;
-        hoveredMarker = dataItem;
-        updateTooltip(dataItem);
-      });
-
-      // Handle pointerout events
-      circle.events.on("pointerout", function() {
-        hoveredMarker = null;
-        updateTooltip(null);
-      });
-
-      return am5.Bullet.new(root, {
-        sprite: circle
-      });
-    });
-
-    // Center the map and set initial zoom
-    chart.appear(1000, 100).then(function() {
-      chart.zoomToGeoPoint({ longitude: 0, latitude: 0 }, 1.5, true);
-    });
-
-    console.log("AmCharts 2D globe initialized successfully");
-  }
-  // Populate 2D globe with IP data
   function populate2DGlobe(ipData, ipPackets) {
-    console.log("Populating 2D globe with IP data:", ipData);
+    if (!map) return
 
-    // Store references to the data for tooltips
-    window.currentIPData = ipData;
-    window.currentIPPackets = ipPackets;
+    window.currentIPData = ipData
+    window.currentIPPackets = ipPackets
 
-    // Clear existing data
-    clear2DGlobeData();
+    clear2DGlobeData()
 
-    // Filter out invalid coordinates
-    const validIPs = ipData.filter((ip) => {
-      return !isNaN(ip.latitude) && !isNaN(ip.longitude);
-    });
+    const validIPs = ipData.filter(ip =>
+      ip.latitude != null && ip.longitude != null &&
+      !isNaN(ip.latitude) && !isNaN(ip.longitude) &&
+      !(ip.latitude === 0 && ip.longitude === 0)
+    )
+    if (validIPs.length === 0) return
 
-    if (validIPs.length === 0) {
-      showStatus("No valid geolocation data available", "error");
-      return;
-    }
-    const userIP = validIPs.find(ip => 
-    ip.threatLevel && ip.threatLevel.level === 0
-  );
-
-   if (userIP && chart) {
-    chart.goHome(); // Reset view
-    chart.zoomToGeoPoint(
-      { longitude: userIP.longitude, latitude: userIP.latitude }, 
-      2.5, // Zoom level
-      true // Animate
-    );
-  }
-
-    // Add markers to the map
     validIPs.forEach(ip => {
-      const packets = window.currentIPPackets?.get(ip.ip);
-      const count = packets ? packets.incoming.length + packets.outgoing.length : 0;
-      
-      const threatColor = ip.threatLevel?.color || "#00ff41";
-      
-      const dataItem = pointSeries.pushDataItem({
-        latitude: ip.latitude,
-        longitude: ip.longitude,
-        ip: ip.ip,
-        city: ip.city,
-        country: ip.country,
-        count: count,
-        threatLevel: ip.threatLevel || { color: "#00ff41", name: "Safe" },
-        fillColor: am5.color(threatColor)
-      });
+      const packets = ipPackets.get(ip.ip)
+      const count = packets ? packets.incoming.length + packets.outgoing.length : 0
+      const color = ip.threatLevel?.color || "#00ff41"
 
-      currentMarkers.push(dataItem);
-    });
+      const icon = L.divIcon({
+        className: "",
+        html: `<div style="
+          width:10px;height:10px;border-radius:50%;
+          background:${color};
+          border:2px solid #0d0208;
+          box-shadow:0 0 6px ${color};
+          cursor:pointer;
+        "></div>`,
+        iconSize: [10, 10],
+        iconAnchor: [5, 5],
+      })
 
-    console.log("2D globe populated with data successfully");
-  }
+      const marker = L.marker([ip.latitude, ip.longitude], { icon })
 
-  // Clear all IP data from 2D globe
-  function clear2DGlobeData() {
-    pointSeries.data.clear();
-    currentMarkers = [];
-    selectedMarker = null;
-    hoveredMarker = null;
-    
-    // Clear global references
-    window.currentIPData = null;
-    window.currentIPPackets = null;
-  }
+      const tooltipHtml = `
+        <div style="background:#0d0208;color:#00ff41;padding:8px;border:1px solid #00ff41;font-family:'Courier New',monospace;font-size:12px;min-width:160px;">
+          <div style="color:${color};font-weight:bold;margin-bottom:4px;">${ip.flag || ""} ${ip.ip}</div>
+          <div>${ip.city || "Unknown"}, ${ip.country || "Unknown"}</div>
+          <div style="color:#888;margin-top:4px;">Packets: ${count}</div>
+          ${ip.isp ? `<div style="color:#888;">ISP: ${ip.isp}</div>` : ""}
+          <div style="margin-top:4px;">
+            <span style="background:${color};color:#000;padding:1px 5px;border-radius:2px;font-size:11px;">
+              ${ip.threatLevel?.name || "Safe"}
+            </span>
+          </div>
+        </div>`
 
-  // Show/hide 2D globe
-  function show2DGlobe() {
-    const chartDiv = document.getElementById("amchart-map");
-    if (chartDiv) {
-      chartDiv.style.display = "block";
+      marker.bindTooltip(tooltipHtml, {
+        sticky: false,
+        opacity: 1,
+        className: "leaflet-packetbracket-tooltip",
+      })
+
+      marker.on("click", () => {
+        selectMarker(marker, ip.ip)
+        if (window.selectIP) window.selectIP(ip.ip)
+      })
+
+      marker._ipData = ip
+      ipLayerGroup.addLayer(marker)
+
+      // Draw arc from user location to this IP
+      if (userMarker) {
+        const userLatLng = userMarker.getLatLng()
+        drawArc(userLatLng, [ip.latitude, ip.longitude], color)
+      }
+    })
+
+    // Re-add user marker on top
+    if (userMarker) {
+      userMarker.remove()
+      userMarker.addTo(map)
     }
+  }
+
+  // Draw a curved arc between two points using a geodesic approximation
+  function drawArc(from, to, color) {
+    const lat1 = from.lat !== undefined ? from.lat : from[0]
+    const lon1 = from.lng !== undefined ? from.lng : from[1]
+    const lat2 = to[0], lon2 = to[1]
+
+    const points = []
+    const steps = 40
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps
+      // Interpolate with a parabolic lift
+      const lat = lat1 + (lat2 - lat1) * t
+      const lon = lon1 + (lon2 - lon1) * t
+      points.push([lat, lon])
+    }
+
+    const arc = L.polyline(points, {
+      color: color,
+      weight: 1,
+      opacity: 0.4,
+      dashArray: "4 4",
+    })
+    ipLayerGroup.addLayer(arc)
+  }
+
+  function selectMarker(marker, ip) {
+    // Reset previous
+    if (selectedMarker && selectedMarker._ipData) {
+      const prev = selectedMarker._ipData
+      const prevColor = prev.threatLevel?.color || "#00ff41"
+      selectedMarker.setIcon(makeIcon(prevColor, false))
+    }
+    selectedMarker = marker
+    const color = marker._ipData?.threatLevel?.color || "#00ff41"
+    marker.setIcon(makeIcon(color, true))
+  }
+
+  function makeIcon(color, selected) {
+    const size = selected ? 14 : 10
+    return L.divIcon({
+      className: "",
+      html: `<div style="
+        width:${size}px;height:${size}px;border-radius:50%;
+        background:${color};
+        border:2px solid ${selected ? "#fff" : "#0d0208"};
+        box-shadow:0 0 ${selected ? 12 : 6}px ${color};
+        cursor:pointer;
+      "></div>`,
+      iconSize: [size, size],
+      iconAnchor: [size / 2, size / 2],
+    })
+  }
+
+  function clear2DGlobeData() {
+    if (ipLayerGroup) ipLayerGroup.clearLayers()
+    selectedMarker = null
+    window.currentIPData = null
+    window.currentIPPackets = null
+  }
+
+  function show2DGlobe() {
+    if (mapDiv) mapDiv.style.display = "block"
+    if (map) map.invalidateSize()
   }
 
   function hide2DGlobe() {
-    const chartDiv = document.getElementById("amchart-map");
-    if (chartDiv) {
-      chartDiv.style.display = "none";
-    }
+    if (mapDiv) mapDiv.style.display = "none"
   }
 
-  // Select a marker
-  function selectMarker(dataItem) {
-    if (selectedMarker === dataItem) return;
-    
-    deselectMarker();
-    selectedMarker = dataItem;
-    
-    // Set selected state
-    if (dataItem.bullet) {
-      dataItem.bullet.get("sprite").set("selected", true);
-    }
-    
-    // Highlight in side panel
-    if (window.highlightIPInSidePanel) {
-      window.highlightIPInSidePanel(dataItem.get("ip"));
-    }
-    
-    // Update tooltip
-    updateTooltip(dataItem);
+  function set2DUserLocation(lat, lon) {
+    if (!map) return
+
+    if (userMarker) userMarker.remove()
+
+    const icon = L.divIcon({
+      className: "",
+      html: `<div style="
+        width:14px;height:14px;border-radius:50%;
+        background:#64ffda;
+        border:2px solid #0d0208;
+        box-shadow:0 0 12px #64ffda, 0 0 4px #64ffda;
+        animation:leaflet-user-pulse 1.5s ease-in-out infinite;
+      "></div>`,
+      iconSize: [14, 14],
+      iconAnchor: [7, 7],
+    })
+
+    userMarker = L.marker([lat, lon], { icon, zIndexOffset: 1000 })
+      .bindTooltip('<div style="background:#0d0208;color:#64ffda;padding:6px 10px;border:1px solid #64ffda;font-family:\'Courier New\',monospace;font-size:12px;">📍 Your Location</div>', {
+        permanent: false,
+        opacity: 1,
+        className: "leaflet-packetbracket-tooltip",
+      })
+      .addTo(map)
+
+    map.setView([lat, lon], 4, { animate: true })
   }
 
-  // Deselect marker
-  function deselectMarker() {
-    if (selectedMarker) {
-      // Clear selected state
-      if (selectedMarker.bullet) {
-        selectedMarker.bullet.get("sprite").set("selected", false);
-      }
-      
-      // Deselect in side panel
-      if (window.highlightIPInSidePanel) {
-        window.highlightIPInSidePanel(null);
-      }
-      
-      selectedMarker = null;
-    }
-  }
+  // Called externally (side panel or 3D globe) to select an IP on the 2D map
+  function selectIPOn2DGlobe(ip) {
+    if (!map || !ipLayerGroup) return
 
-  // Update tooltip content
-  function updateTooltip(dataItem) {
-    if (!dataItem) {
-      pointSeries.set("tooltip", undefined);
-      return;
-    }
-    
-    const ip = dataItem.get("ip");
-    const city = dataItem.get("city") || "Unknown";
-    const country = dataItem.get("country") || "Unknown";
-    const count = dataItem.get("count") || 0;
-    const threatLevel = dataItem.get("threatLevel") || { name: "Safe", color: "#00ff41" };
-    
-    const ipInfo = window.currentIPData?.find((data) => data.ip === ip);
-    
-    const tooltipContent = [
-      `${city}, ${country}`,
-      `IP: ${ip}`,
-      `Threat: ${threatLevel.name}`,
-      `Packets: ${count}`,
-      ipInfo?.isp ? `ISP: ${ipInfo.isp}` : null
-    ].filter(line => line !== null).join("\n");
-    
-    pointSeries.set("tooltip", am5.Tooltip.new(root, {
-      labelText: tooltipContent,
-      themeTags: ["tooltip"],
-      pointerOrientation: "vertical",
-      autoTextColor: false,
-      labelHTML: `
-        <div style="
-          background: #0d0208;
-          color: #00ff41;
-          padding: 8px;
-          border: 1px solid #00ff41;
-          border-radius: 4px;
-          font-family: 'Courier New', monospace;
-          font-size: 12px;
-          white-space: pre-line;
-        ">
-          ${tooltipContent}
-        </div>
-      `
-    }));
-  }
+    let found = null
+    ipLayerGroup.eachLayer(layer => {
+      if (layer._ipData && layer._ipData.ip === ip) found = layer
+    })
+    if (!found) return
 
-  function showStatus(message, type = "info") {
-    const statusEl = document.createElement("div");
-    statusEl.style.position = "fixed";
-    statusEl.style.bottom = "20px";
-    statusEl.style.right = "20px";
-    statusEl.style.padding = "10px 20px";
-    statusEl.style.borderRadius = "5px";
-    statusEl.style.color = "white";
-    statusEl.style.zIndex = "1000";
-
-    if (type === "error") {
-      statusEl.style.backgroundColor = "rgba(255, 82, 82, 0.9)";
-    } else {
-      statusEl.style.backgroundColor = "rgba(100, 255, 218, 0.9)";
+    // Deselect previous
+    if (selectedMarker && selectedMarker !== found) {
+      const prev = selectedMarker._ipData
+      if (prev) selectedMarker.setIcon(makeIcon(prev.threatLevel?.color || "#00ff41", false))
     }
 
-    statusEl.textContent = message;
-    document.body.appendChild(statusEl);
-
-    setTimeout(() => {
-      statusEl.style.opacity = "0";
-      setTimeout(() => {
-        document.body.removeChild(statusEl);
-      }, 500);
-    }, 3000);
+    selectMarker(found, ip)
+    map.setView([found._ipData.latitude, found._ipData.longitude], Math.max(map.getZoom(), 4), { animate: true })
   }
 
   function cleanup2DGlobe() {
-    if (root) {
-      root.dispose();
+    if (map) {
+      map.remove()
+      map = null
     }
-    
-    const container = document.getElementById("globe");
-    const chartDiv = document.getElementById("amchart-map");
-    if (container && chartDiv) {
-      container.removeChild(chartDiv);
+    if (mapDiv && mapDiv.parentNode) {
+      mapDiv.parentNode.removeChild(mapDiv)
+      mapDiv = null
     }
-    
-    currentMarkers = [];
-    selectedMarker = null;
-    hoveredMarker = null;
+    ipLayerGroup = null
+    userMarker = null
+    selectedMarker = null
   }
 
-  window.initEmpty2DGlobe = initEmpty2DGlobe;
-  window.populate2DGlobe = populate2DGlobe;
-  window.clear2DGlobeData = clear2DGlobeData;
-  window.show2DGlobe = show2DGlobe;
-  window.hide2DGlobe = hide2DGlobe;
-  window.cleanup2DGlobe = cleanup2DGlobe;
-})();
+  window.initEmpty2DGlobe = initEmpty2DGlobe
+  window.populate2DGlobe = populate2DGlobe
+  window.clear2DGlobeData = clear2DGlobeData
+  window.show2DGlobe = show2DGlobe
+  window.hide2DGlobe = hide2DGlobe
+  window.cleanup2DGlobe = cleanup2DGlobe
+  window.set2DUserLocation = set2DUserLocation
+  window.selectIPOn2DGlobe = selectIPOn2DGlobe
+})()

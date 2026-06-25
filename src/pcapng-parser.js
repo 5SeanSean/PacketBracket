@@ -572,3 +572,4 @@ class PcapngParser {
 }
 
 export default PcapngParser
+window.PcapngParser = PcapngParser

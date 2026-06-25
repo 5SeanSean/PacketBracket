@@ -55,14 +55,28 @@ class ViewportManager {
       // Set default view to 3D
       this.currentView = "3d"
       this.showCurrentView()
+
+      this.locateUser()
     } catch (error) {
       console.error("Error initializing globes:", error)
     }
-    if (window.exampleData) {
-  const ipData = window.exampleData.getIPDataForGlobe();
-  const ipPackets = window.exampleData.getIPPacketsForGlobe();
-  this.setIPData(ipData, ipPackets);
-}
+  }
+
+  locateUser() {
+    if (!navigator.geolocation) return
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = pos.coords.latitude
+        const lon = pos.coords.longitude
+        if (window.setUserLocation) window.setUserLocation(lat, lon)
+        if (window.set2DUserLocation) window.set2DUserLocation(lat, lon)
+      },
+      (err) => {
+        console.info("Geolocation not available:", err.message)
+      },
+      { timeout: 10000 }
+    )
   }
 
   waitForLibraries() {

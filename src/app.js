@@ -22,15 +22,6 @@ document.addEventListener("DOMContentLoaded", () => {
   globeContainer.style.width = "auto" // Make it square
   globeContainer.style.position = "relative"
   globeContainer.style.overflow = "visible" // Hide overflow
-if (window.exampleData && window.displayIPDetails) {
-    const ipData = window.exampleData.getIPDataForGlobe();
-    const ipPackets = window.exampleData.getIPPacketsForGlobe();
-    window.displayIPDetails(ipData, ipPackets, { name: "Example Data" }, {
-      totalPackets: Object.values(ipPackets).reduce((sum, p) => sum + p.incoming.length + p.outgoing.length, 0),
-      ipv4Packets: Object.values(ipPackets).reduce((sum, p) => sum + p.incoming.length + p.outgoing.length, 0),
-      uniqueIPs: ipData.length
-    });
-  }
   // Move progress container to be centered in globe
   const progressContainer = document.getElementById("progressContainer")
   if (progressContainer) {

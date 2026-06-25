@@ -2,6 +2,124 @@
 
 import { useRef } from "react"
 
+const LIVE_BUTTON_STYLES = {
+  base: {
+    width: "100%",
+    marginTop: "10px",
+    padding: "10px 16px",
+    borderRadius: "4px",
+    fontSize: "14px",
+    fontWeight: "bold",
+    cursor: "pointer",
+    border: "none",
+    transition: "background 0.2s",
+  },
+  unsupported: {
+    background: "#1a1a1a",
+    color: "#555",
+    cursor: "not-allowed",
+    border: "1px solid #333",
+  },
+  idle: {
+    background: "#003300",
+    color: "#00ff41",
+    border: "1px solid #00ff41",
+  },
+  connecting: {
+    background: "#003300",
+    color: "#ffff00",
+    border: "1px solid #ffff00",
+    cursor: "wait",
+  },
+  live: {
+    background: "#003300",
+    color: "#ff4444",
+    border: "1px solid #ff4444",
+  },
+  error: {
+    background: "#1a0000",
+    color: "#ff4444",
+    border: "1px solid #ff4444",
+  },
+}
+
+function LiveCaptureButton({ status, onStart, onStop }) {
+  if (status === "unsupported") {
+    return (
+      <button
+        style={{ ...LIVE_BUTTON_STYLES.base, ...LIVE_BUTTON_STYLES.unsupported }}
+        disabled
+        title="Run the app locally to use live capture"
+      >
+        Download App to Use Live Capture
+      </button>
+    )
+  }
+
+  if (status === "live") {
+    return (
+      <button
+        style={{ ...LIVE_BUTTON_STYLES.base, ...LIVE_BUTTON_STYLES.live }}
+        onClick={onStop}
+      >
+        Stop Live Capture
+      </button>
+    )
+  }
+
+  if (status === "connecting") {
+    return (
+      <button style={{ ...LIVE_BUTTON_STYLES.base, ...LIVE_BUTTON_STYLES.connecting }} disabled>
+        Connecting to daemon...
+      </button>
+    )
+  }
+
+  if (status === "no_capture") {
+    return (
+      <div>
+        <button style={{ ...LIVE_BUTTON_STYLES.base, ...LIVE_BUTTON_STYLES.live }} onClick={onStop}>
+          Stop Live Capture
+        </button>
+        <p style={{ color: "#ffff00", fontSize: "11px", marginTop: "4px", textAlign: "center" }}>
+          Connected but no capture driver.{" "}
+          <a href="https://npcap.com/#download" target="_blank" rel="noopener noreferrer" style={{ color: "#ffff00" }}>
+            Install Npcap
+          </a>{" "}
+          then restart the daemon.
+        </p>
+      </div>
+    )
+  }
+
+  if (status === "error") {
+    return (
+      <div>
+        <button
+          style={{ ...LIVE_BUTTON_STYLES.base, ...LIVE_BUTTON_STYLES.error }}
+          onClick={onStart}
+          title="Make sure capture_daemon.py is running: python capture_daemon.py"
+        >
+          Retry Live Capture
+        </button>
+        <p style={{ color: "#ff4444", fontSize: "11px", marginTop: "4px", textAlign: "center" }}>
+          Daemon not found. Run: <code>python capture_daemon.py</code>
+        </p>
+      </div>
+    )
+  }
+
+  // idle
+  return (
+    <button
+      style={{ ...LIVE_BUTTON_STYLES.base, ...LIVE_BUTTON_STYLES.idle }}
+      onClick={onStart}
+    >
+      Start Live Capture
+    </button>
+  )
+}
+
 const SidePanelComponent = ({
   ipData,
   ipPackets,
@@ -11,6 +129,9 @@ const SidePanelComponent = ({
   selectedIP,
   onFileUpload,
   onIPSelect,
+  liveStatus,
+  onStartCapture,
+  onStopCapture,
 }) => {
   const fileInputRef = useRef(null)
 
@@ -92,6 +213,12 @@ const SidePanelComponent = ({
           <p style={{ fontSize: "18px", marginBottom: "20px" }}>Drop your PCAP-NG file here or click to select</p>
           <button className="upload-btn">Choose File</button>
         </div>
+
+        <LiveCaptureButton
+          status={liveStatus}
+          onStart={onStartCapture}
+          onStop={onStopCapture}
+        />
 
         {summary && (
           <div className="summary">

@@ -5,48 +5,40 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PCAP-NG IP Analyzer</title>
     <link rel="stylesheet" href="src/styles.css">
+
+    <!-- Leaflet for 2D map -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+      .leaflet-packetbracket-tooltip { background:transparent; border:none; box-shadow:none; padding:0; }
+      .leaflet-packetbracket-tooltip::before { display:none; }
+      @keyframes leaflet-user-pulse {
+        0%,100% { box-shadow: 0 0 6px #64ffda, 0 0 2px #64ffda; }
+        50%      { box-shadow: 0 0 18px #64ffda, 0 0 8px #64ffda; }
+      }
+    </style>
 </head>
 <body>
-    
     <input type="file" id="fileInput" accept=".pcapng,.pcap" style="display: none;">
     <div class="main-container">
         <div class="globe-container">
-        
-        <div id="globe"></div>
-        <div id="progressContainer" style="display: none;">
-            <div class="progress-bar">
-            <div class="progress-fill" id="progressFill"></div>
+            <div id="globe"></div>
+            <div id="progressContainer" style="display: none;">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+                <div id="progressText" class="loading">Starting...</div>
             </div>
-            <div id="progressText" class="loading">Starting...</div>
-        </div>
-        <div id="results"></div>
+            <div id="results"></div>
         </div>
         <div class="side-panel-container"></div>
     </div>
 
-     Load libraries 
-    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    
-     Load AmCharts 
-<script src="https://cdn.amcharts.com/lib/5/index.js"></script>
-<script src="https://cdn.amcharts.com/lib/5/map.js"></script>
-<script src="https://cdn.amcharts.com/lib/5/geodata/worldLow.js"></script>
-<script src="https://cdn.amcharts.com/lib/5/themes/Animated.js"></script>
-   
-     Load your existing scripts 
+    <div id="textureStatus" style="display: none; position: fixed; bottom: 20px; right: 20px; background: rgba(0,0,0,0.7); color: white; padding: 10px; border-radius: 5px;"></div>
+
     <script type="module" src="src/app.js"></script>
     <script src="src/side-panel.js"></script>
     <script src="src/viewport-manager.js"></script>
-<script src="src/exampleData.js"></script>
-    <div id="textureStatus" style="display: none; position: fixed; bottom: 20px; right: 20px; background: rgba(0,0,0,0.7); color: white; padding: 10px; border-radius: 5px;"></div>
-
-    
-
-    <script>
-        // Now create the actual FaultyTerminal effect
-
-    </script>
+    <script src="src/live-capture.js"></script>
 </body>
 </html>

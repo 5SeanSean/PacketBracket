@@ -13,6 +13,7 @@ let scene, camera, renderer, globe, controls
 let ipMarkers = []
 let animationId
 let userLocation = null
+let userLocationLocked = false // true once set by real geolocation
 let userMarker = null
 let connectionArcs = []
 const currentLocations = []
@@ -195,11 +196,9 @@ function populateGlobe(ipData, ipPackets) {
   clearGlobeData()
 
   const validIPs = ipData.filter((ip) => {
-    const valid = !isNaN(ip.latitude) && !isNaN(ip.longitude)
-    if (!valid) {
-      console.warn(`Invalid coordinates for IP ${ip.ip}:`, ip.latitude, ip.longitude)
-    }
-    return valid
+    return ip.latitude != null && ip.longitude != null &&
+      !isNaN(ip.latitude) && !isNaN(ip.longitude) &&
+      !(ip.latitude === 0 && ip.longitude === 0)
   })
 
   if (validIPs.length === 0) {
@@ -212,16 +211,17 @@ function populateGlobe(ipData, ipPackets) {
     ip.ip !== "0.0.0.0" // Not the fallback IP
   );
 
-   if (userIPMarker) {
-    userLocation = {
-      latitude: userIPMarker.latitude,
-      longitude: userIPMarker.longitude
-    };
-  } else {
-    // Calculate center point based on IP locations as fallback
-    const centerLat = validIPs.reduce((sum, ip) => sum + ip.latitude, 0) / validIPs.length;
-    const centerLon = validIPs.reduce((sum, ip) => sum + ip.longitude, 0) / validIPs.length;
-    userLocation = { latitude: centerLat, longitude: centerLon };
+  if (!userLocationLocked) {
+    if (userIPMarker) {
+      userLocation = {
+        latitude: userIPMarker.latitude,
+        longitude: userIPMarker.longitude
+      };
+    } else {
+      const centerLat = validIPs.reduce((sum, ip) => sum + ip.latitude, 0) / validIPs.length;
+      const centerLon = validIPs.reduce((sum, ip) => sum + ip.longitude, 0) / validIPs.length;
+      userLocation = { latitude: centerLat, longitude: centerLon };
+    }
   }
 
   // Calculate min and max traffic values
@@ -245,10 +245,12 @@ function populateGlobe(ipData, ipPackets) {
     maxContacts = minContacts + 1
   }
 
-  // Calculate center point based on IP locations
-  const centerLat = validIPs.reduce((sum, ip) => sum + ip.latitude, 0) / validIPs.length
-  const centerLon = validIPs.reduce((sum, ip) => sum + ip.longitude, 0) / validIPs.length
-  userLocation = { latitude: centerLat, longitude: centerLon }
+  // Only update userLocation from IP data if not locked by geolocation
+  if (!userLocationLocked) {
+    const centerLat = validIPs.reduce((sum, ip) => sum + ip.latitude, 0) / validIPs.length
+    const centerLon = validIPs.reduce((sum, ip) => sum + ip.longitude, 0) / validIPs.length
+    userLocation = { latitude: centerLat, longitude: centerLon }
+  }
 
   // Add IP markers and connections
   validIPs.forEach((ip) => {
@@ -309,7 +311,7 @@ function clearGlobeData() {
   // Reset selection
   selectedMarker = null
   selectedIP = null
-  userLocation = null
+  if (!userLocationLocked) userLocation = null
 }
 
 // Show/hide globe
@@ -466,10 +468,9 @@ function selectMarker(marker, ip) {
     }
   });
 
-  // Scroll to and highlight in side panel
-  if (window.highlightIPInSidePanel) {
-    window.highlightIPInSidePanel(ip);
-  }
+  // Sync side panel and 2D map (don't call selectIPOnGlobe — we're already in it)
+  if (window.highlightIPInSidePanel) window.highlightIPInSidePanel(ip)
+  if (window.selectIPOn2DGlobe) window.selectIPOn2DGlobe(ip)
 
   const lat = marker.userData.originalLat;
   const lon = marker.userData.originalLon;
@@ -902,6 +903,25 @@ window.selectIPOnGlobe = (ip) => {
   }
 }
 
+// Place (or update) the user marker without any IP data
+function setUserLocation(lat, lon) {
+  userLocation = { latitude: lat, longitude: lon }
+  userLocationLocked = true
+
+  if (!globeGroup) return // globe not ready yet
+
+  // Remove existing user marker
+  if (userMarker && userMarker.parent) {
+    userMarker.parent.remove(userMarker)
+    if (userMarker.geometry) userMarker.geometry.dispose()
+    if (userMarker.material) userMarker.material.dispose()
+    userMarker = null
+  }
+
+  userMarker = createUserMarker(latLonToVector3(lat, lon, 1.01))
+  globeGroup.add(userMarker)
+}
+
 // Export functions
 window.initEmptyGlobe = initEmptyGlobe
 window.populateGlobe = populateGlobe
@@ -909,3 +929,4 @@ window.clearGlobeData = clearGlobeData
 window.showGlobe = showGlobe
 window.hideGlobe = hideGlobe
 window.cleanupGlobe = cleanupGlobe
+window.setUserLocation = setUserLocation
