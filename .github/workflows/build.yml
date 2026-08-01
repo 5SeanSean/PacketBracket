@@ -8,17 +8,7 @@ on:
 
 jobs:
   build:
-    strategy:
-      matrix:
-        include:
-          - os: windows-latest
-            platform: win
-          - os: macos-latest
-            platform: mac
-          - os: ubuntu-latest
-            platform: linux
-
-    runs-on: ${{ matrix.os }}
+    runs-on: windows-latest
 
     steps:
       - uses: actions/checkout@v4
@@ -28,34 +18,25 @@ jobs:
           node-version: 20
           cache: npm
 
+      # The `cap` native module bundles its own WinPcap SDK (deps/winpcap),
+      # so no external Npcap SDK is needed to compile on Windows.
       - name: Install dependencies
         run: npm ci
 
-      - name: Install Npcap SDK (Windows only)
-        if: matrix.os == 'windows-latest'
-        run: |
-          Invoke-WebRequest -Uri "https://npcap.com/dist/npcap-sdk-1.13.zip" -OutFile npcap-sdk.zip
-          Expand-Archive npcap-sdk.zip -DestinationPath npcap-sdk
-          echo "NPCAP_SDK_DIR=${{ github.workspace }}\npcap-sdk" >> $env:GITHUB_ENV
-        shell: pwsh
-
-      - name: Rebuild native modules
+      - name: Rebuild native modules for Electron
         run: npm run rebuild
 
-      - name: Build Electron app
-        run: npm run build:${{ matrix.platform }}
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # --publish never: electron-builder only builds artifacts; the dedicated
+      # release job below attaches them, so we avoid double-publishing.
+      - name: Build Windows app
+        run: npm run build:win -- --publish never
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: PacketBracket-${{ matrix.platform }}
-          path: |
-            dist-electron/*.exe
-            dist-electron/*.dmg
-            dist-electron/*.AppImage
-          if-no-files-found: ignore
+          name: PacketBracket-win
+          path: dist-electron/*.exe
+          if-no-files-found: error
 
   release:
     needs: build
