@@ -8,7 +8,9 @@ on:
 
 jobs:
   build:
-    runs-on: windows-latest
+    # Pinned to 2022 (VS 17): windows-latest ships VS 18, which the older
+    # node-gyp@9.4.1 used by cap/electron-rebuild cannot detect.
+    runs-on: windows-2022
 
     steps:
       - uses: actions/checkout@v4
