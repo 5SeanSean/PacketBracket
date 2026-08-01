@@ -20,6 +20,12 @@ jobs:
           node-version: 20
           cache: npm
 
+      # node-gyp@9.4.1 (via cap/electron-rebuild) uses distutils, which was
+      # removed in Python 3.12. Pin to 3.11 so the native build works.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
       # The `cap` native module bundles its own WinPcap SDK (deps/winpcap),
       # so no external Npcap SDK is needed to compile on Windows.
       - name: Install dependencies
