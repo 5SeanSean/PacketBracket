@@ -1,7 +1,22 @@
 const { app, BrowserWindow, ipcMain, protocol, shell } = require('electron')
 const path = require('path')
 const fs = require('fs')
-const { Cap, decoders } = require('cap')
+
+// `cap` is a native module that depends on Npcap's wpcap.dll at runtime. If
+// Npcap isn't installed, require('cap') throws "specified module could not be
+// found". Load it lazily (only when capture starts) and guard it, so the app
+// still launches without Npcap and can offer to install it.
+let Cap = null
+let decoders = null
+function loadCap() {
+  if (Cap) return true
+  try {
+    ;({ Cap, decoders } = require('cap'))
+    return true
+  } catch (e) {
+    return false
+  }
+}
 
 // Path to the Npcap installer bundled via extraResources (present only if
 // electron/npcap-installer.exe existed at build time). Falls back to a repo-local
@@ -89,6 +104,15 @@ function getProtocolName(proto) {
 function startCapture(iface) {
   if (capturing) return
 
+  if (!loadCap()) {
+    mainWindow?.webContents.send('capture-error', {
+      message: 'Npcap is required for live capture',
+      driverMissing: true,
+      canInstall: !!npcapInstallerPath(),
+    })
+    return
+  }
+
   let device
   try {
     device = iface || Cap.findDevice()
@@ -172,6 +196,7 @@ function stopCapture() {
 ipcMain.on('start-capture', (_, iface) => startCapture(iface))
 ipcMain.on('stop-capture', () => stopCapture())
 ipcMain.handle('list-interfaces', () => {
+  if (!loadCap()) return []
   try {
     return Cap.deviceList()
   } catch {
