@@ -8,3 +8,4 @@ dist-electron/
 # in a public installer without a paid OEM license (npcap.com/oem).
 electron/npcap-installer.exe
 .vscode/settings.json
+.claude
