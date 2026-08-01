@@ -9,3 +9,6 @@ dist-electron/
 electron/npcap-installer.exe
 .vscode/settings.json
 .claude
+
+# Wrangler local state/cache (contains account info) — never commit
+worker/.wrangler/
