@@ -2,3 +2,8 @@ node_modules/
 dist-electron/
 *.log
 .DS_Store
+
+# Npcap installer — for LOCAL testing of the one-click install flow only.
+# Do NOT commit or redistribute: the free Npcap license prohibits bundling it
+# in a public installer without a paid OEM license (npcap.com/oem).
+electron/npcap-installer.exe

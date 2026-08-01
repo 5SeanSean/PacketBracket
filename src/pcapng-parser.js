@@ -1,17 +1,7 @@
 // src/pcapng-parser.js
 
-// Define threat levels locally to avoid import issues
-const THREAT_LEVELS = {
-  SAFE: { level: 0, color: "#00ff41", name: "Safe" },
-  LOW: { level: 1, color: "#7fff00", name: "Low Risk" },
-  MEDIUM: { level: 2, color: "#ffff00", name: "Medium Risk" },
-  HIGH: { level: 3, color: "#ff8c00", name: "High Risk" },
-  CRITICAL: { level: 4, color: "#ff0000", name: "Critical" },
-}
-
-// Abstract API Configuration
-const abstractApiKey = "982c9b2770424f8280607bdd18fbd1cc"
-const abstractApiEndpoint = "https://ip-intelligence.abstractapi.com/v1/"
+// IP-intelligence config comes from the single source of truth in config.js.
+import { abstractApiKey, abstractApiEndpoint, THREAT_LEVELS } from "./config.js"
 
 class PcapngParser {
   constructor() {

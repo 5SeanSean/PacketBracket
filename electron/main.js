@@ -1,6 +1,18 @@
-const { app, BrowserWindow, ipcMain, protocol } = require('electron')
+const { app, BrowserWindow, ipcMain, protocol, shell } = require('electron')
 const path = require('path')
+const fs = require('fs')
 const { Cap, decoders } = require('cap')
+
+// Path to the Npcap installer bundled via extraResources (present only if
+// electron/npcap-installer.exe existed at build time). Falls back to a repo-local
+// copy during `npm start` development runs.
+function npcapInstallerPath() {
+  const bundled = path.join(process.resourcesPath, 'npcap-installer.exe')
+  if (fs.existsSync(bundled)) return bundled
+  const dev = path.join(__dirname, 'npcap-installer.exe')
+  if (fs.existsSync(dev)) return dev
+  return null
+}
 
 // Register app:// scheme before app is ready (required for module loading)
 protocol.registerSchemesAsPrivileged([
@@ -81,7 +93,11 @@ function startCapture(iface) {
   try {
     device = iface || Cap.findDevice()
   } catch (e) {
-    mainWindow?.webContents.send('capture-error', 'Could not find a network interface. Install Npcap from https://npcap.com')
+    mainWindow?.webContents.send('capture-error', {
+      message: 'Could not find a network interface. Npcap is required.',
+      driverMissing: true,
+      canInstall: !!npcapInstallerPath(),
+    })
     return
   }
 
@@ -125,14 +141,21 @@ function startCapture(iface) {
     })
 
     capture.on('error', (err) => {
-      mainWindow?.webContents.send('capture-error', err.message)
+      mainWindow?.webContents.send('capture-error', { message: err.message })
       stopCapture()
     })
   } catch (err) {
-    const msg = err.message.includes('Npcap') || err.message.includes('WinPcap') || err.message.includes('pcap')
-      ? 'Install Npcap from https://npcap.com to enable live capture'
-      : err.message
-    mainWindow?.webContents.send('capture-error', msg)
+    const driverMissing = err.message.includes('Npcap') || err.message.includes('WinPcap') || err.message.includes('pcap')
+    if (driverMissing) {
+      // Renderer decides whether to offer the one-click bundled installer.
+      mainWindow?.webContents.send('capture-error', {
+        message: 'Npcap is required for live capture',
+        driverMissing: true,
+        canInstall: !!npcapInstallerPath(),
+      })
+    } else {
+      mainWindow?.webContents.send('capture-error', { message: err.message })
+    }
     capture = null
   }
 }
@@ -154,4 +177,19 @@ ipcMain.handle('list-interfaces', () => {
   } catch {
     return []
   }
+})
+
+// Launch the bundled Npcap installer (or fall back to the download page).
+ipcMain.handle('install-npcap', async () => {
+  const installer = npcapInstallerPath()
+  if (installer) {
+    try {
+      await shell.openPath(installer)
+      return { launched: true }
+    } catch (e) {
+      return { launched: false, error: e.message }
+    }
+  }
+  await shell.openExternal('https://npcap.com/#download')
+  return { launched: false, opened: 'https://npcap.com/#download' }
 })

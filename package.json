@@ -34,7 +34,13 @@
       "src/styles.css",
       "node_modules/cap/**/*"
     ],
-    "extraResources": [],
+    "extraResources": [
+      {
+        "from": "electron",
+        "to": ".",
+        "filter": ["npcap-installer.exe"]
+      }
+    ],
     "win": {
       "target": [
         { "target": "nsis", "arch": ["x64"] },
@@ -53,7 +59,11 @@
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true
+      "createDesktopShortcut": true,
+      "artifactName": "${productName}-Setup.${ext}"
+    },
+    "portable": {
+      "artifactName": "${productName}-Portable.${ext}"
     },
     "publish": {
       "provider": "github",

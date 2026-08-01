@@ -1,67 +1,78 @@
-// live-capture.js — WebSocket client or Electron IPC for live packet capture
+// live-capture.js — Electron IPC live capture (desktop app only).
+// In the browser (web mode) this app is a viewer; live capture requires the
+// desktop app, so the button becomes a download CTA.
 
 ;(function () {
-  const DAEMON_URL = "ws://localhost:8765"
   const DOWNLOAD_URL = "https://github.com/5SeanSean/PacketBracket/releases/latest/download/PacketBracket-Setup.exe"
 
   const IS_ELECTRON = typeof window.electronAPI !== "undefined"
 
-  let ws = null
-  let status = "idle" // idle | connecting | live | no_capture | error
+  let status = "idle" // idle | connecting | live | no_driver | error
+  let canInstallNpcap = false // set from capture-error payload
 
   // ---- Button rendering ----
 
-  function downloadLink() {
-    if (IS_ELECTRON) return ""
-    return `<a href="${DOWNLOAD_URL}" style="display:block;margin-top:8px;text-align:center;color:#00ff41;font-size:11px;font-family:'Courier New',monospace;text-decoration:none;opacity:0.7;" title="Download the desktop app for built-in live capture (no daemon needed)">⬇ Download Desktop App for Live Capture</a>`
-  }
+  const BTN_BASE =
+    "width:100%;padding:10px 16px;border-radius:4px;font-size:14px;font-weight:bold;cursor:pointer;font-family:'Courier New',monospace;transition:background 0.2s;"
 
   function renderBtn() {
     const el = document.getElementById("liveCaptureBtn")
     if (!el) return
 
-    const s = {
-      base: "width:100%;padding:10px 16px;border-radius:4px;font-size:14px;font-weight:bold;cursor:pointer;font-family:'Courier New',monospace;transition:background 0.2s;",
+    // Web mode: this is a viewer. Live capture needs the desktop app.
+    if (!IS_ELECTRON) {
+      el.innerHTML = `
+        <a href="${DOWNLOAD_URL}" style="${BTN_BASE}display:block;box-sizing:border-box;text-align:center;background:#003300;color:#00ff41;border:1px solid #00ff41;text-decoration:none;" title="Download the desktop app for built-in live capture">⬇ Get Desktop App for Live Capture</a>
+        <p style="color:#00ff41;font-size:11px;margin-top:6px;text-align:center;font-family:'Courier New',monospace;opacity:0.7;">Live capture runs in the free desktop app.</p>`
+      return
     }
 
     if (status === "connecting") {
-      el.innerHTML = `<button disabled style="${s.base}background:#003300;color:#ffff00;border:1px solid #ffff00;cursor:wait;">Connecting...</button>${downloadLink()}`
+      el.innerHTML = `<button disabled style="${BTN_BASE}background:#003300;color:#ffff00;border:1px solid #ffff00;cursor:wait;">Connecting...</button>`
       return
     }
 
     if (status === "live") {
-      el.innerHTML = `<button id="liveCaptureStop" style="${s.base}background:#003300;color:#ff4444;border:1px solid #ff4444;">Stop Live Capture</button>`
+      el.innerHTML = `<button id="liveCaptureStop" style="${BTN_BASE}background:#003300;color:#ff4444;border:1px solid #ff4444;">Stop Live Capture</button>`
       document.getElementById("liveCaptureStop").onclick = stopCapture
       return
     }
 
-    if (status === "no_capture") {
+    if (status === "no_driver") {
+      const installBtn = canInstallNpcap
+        ? `<button id="npcapInstall" style="${BTN_BASE}margin-top:6px;background:#003300;color:#ffff00;border:1px solid #ffff00;">Install Npcap</button>`
+        : `<a href="https://npcap.com/#download" target="_blank" style="display:block;margin-top:6px;text-align:center;color:#ffff00;font-size:11px;font-family:'Courier New',monospace;">Install Npcap from npcap.com</a>`
       el.innerHTML = `
-        <button id="liveCaptureStop" style="${s.base}background:#003300;color:#ff4444;border:1px solid #ff4444;">Stop Live Capture</button>
-        <p style="color:#ffff00;font-size:11px;margin-top:4px;text-align:center;font-family:'Courier New',monospace;">
-          No capture driver. <a href="https://npcap.com/#download" target="_blank" style="color:#ffff00;">Install Npcap</a> then restart.
-        </p>${downloadLink()}`
-      document.getElementById("liveCaptureStop").onclick = stopCapture
+        <button id="liveCaptureStart" style="${BTN_BASE}background:#1a1a00;color:#ffff00;border:1px solid #ffff00;">Retry Live Capture</button>
+        <p style="color:#ffff00;font-size:11px;margin-top:4px;text-align:center;font-family:'Courier New',monospace;">Npcap driver required for live capture.</p>
+        ${installBtn}`
+      document.getElementById("liveCaptureStart").onclick = startCapture
+      const ib = document.getElementById("npcapInstall")
+      if (ib) ib.onclick = installNpcap
       return
     }
 
     if (status === "error") {
-      const hint = IS_ELECTRON
-        ? `<p style="color:#ff4444;font-size:11px;margin-top:4px;text-align:center;font-family:'Courier New',monospace;">Install <a href="https://npcap.com" target="_blank" style="color:#ff4444;">Npcap</a> to enable live capture</p>`
-        : `<p style="color:#ff4444;font-size:11px;margin-top:4px;text-align:center;font-family:'Courier New',monospace;">Daemon not found. Run: <code>python capture_daemon.py</code></p>${downloadLink()}`
-      el.innerHTML = `<button id="liveCaptureStart" style="${s.base}background:#1a0000;color:#ff4444;border:1px solid #ff4444;">Retry Live Capture</button>${hint}`
+      el.innerHTML = `<button id="liveCaptureStart" style="${BTN_BASE}background:#1a0000;color:#ff4444;border:1px solid #ff4444;">Retry Live Capture</button>`
       document.getElementById("liveCaptureStart").onclick = startCapture
       return
     }
 
     // idle
-    el.innerHTML = `<button id="liveCaptureStart" style="${s.base}background:#003300;color:#00ff41;border:1px solid #00ff41;">Start Live Capture</button>${downloadLink()}`
+    el.innerHTML = `<button id="liveCaptureStart" style="${BTN_BASE}background:#003300;color:#00ff41;border:1px solid #00ff41;">Start Live Capture</button>`
     document.getElementById("liveCaptureStart").onclick = startCapture
+  }
+
+  function installNpcap() {
+    if (!IS_ELECTRON) return
+    window.electronAPI.installNpcap()
   }
 
   // ---- Electron IPC capture ----
 
-  function startCaptureElectron() {
+  function startCapture() {
+    if (!IS_ELECTRON) return // web mode is download-only
+
     status = "connecting"
     renderBtn()
 
@@ -72,10 +83,13 @@
       renderBtn()
     })
 
-    window.electronAPI.onCaptureError(function (msg) {
-      status = "error"
+    window.electronAPI.onCaptureError(function (err) {
+      // err is { message, driverMissing?, canInstall? }
+      const info = typeof err === "string" ? { message: err } : (err || {})
+      canInstallNpcap = !!info.canInstall
+      status = info.driverMissing ? "no_driver" : "error"
       renderBtn()
-      console.error("[capture]", msg)
+      console.error("[capture]", info.message)
     })
 
     window.electronAPI.onPacket(function (evt) {
@@ -85,69 +99,12 @@
     window.electronAPI.startCapture()
   }
 
-  function stopCaptureElectron() {
+  function stopCapture() {
+    if (!IS_ELECTRON) return
     window.electronAPI.stopCapture()
     window.electronAPI.removeAllListeners()
     status = "idle"
     renderBtn()
-  }
-
-  // ---- WebSocket capture ----
-
-  function startCaptureWS() {
-    status = "connecting"
-    renderBtn()
-
-    ws = new WebSocket(DAEMON_URL)
-
-    ws.onopen = function () {
-      status = "live"
-      renderBtn()
-    }
-
-    ws.onclose = function (e) {
-      if (e.code !== 1000) {
-        status = "error"
-        renderBtn()
-      }
-      ws = null
-    }
-
-    ws.onerror = function () {
-      status = "error"
-      renderBtn()
-      ws = null
-    }
-
-    ws.onmessage = function (msg) {
-      try {
-        const event = JSON.parse(msg.data)
-        if (event.type === "packet") handlePacket(event)
-        else if (event.type === "no_capture") {
-          status = "no_capture"
-          renderBtn()
-        }
-      } catch (_) {}
-    }
-  }
-
-  function stopCaptureWS() {
-    if (ws) ws.close(1000, "user stopped")
-    ws = null
-    status = "idle"
-    renderBtn()
-  }
-
-  // ---- Unified start/stop ----
-
-  function startCapture() {
-    if (IS_ELECTRON) startCaptureElectron()
-    else startCaptureWS()
-  }
-
-  function stopCapture() {
-    if (IS_ELECTRON) stopCaptureElectron()
-    else stopCaptureWS()
   }
 
   // ---- Packet handling ----

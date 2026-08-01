@@ -8,9 +8,12 @@ const THREAT_LEVELS = {
   CRITICAL: { level: 4, color: "#ff0000", name: "Critical" },
 };
 
-// Abstract API Configuration
-const abstractApiKey = "982c9b2770424f8280607bdd18fbd1cc";
-const abstractApiEndpoint = "https://ip-intelligence.abstractapi.com/v1/";
+// Abstract API config — read from the shared window.PB_CONFIG (set by config.js)
+// instead of hardcoding the key. NOTE: this file is currently orphaned (not
+// loaded by index.html); kept in sync so no stray key copy lives here.
+const _pbcfg = (typeof window !== "undefined" && window.PB_CONFIG) || {};
+const abstractApiKey = _pbcfg.abstractApiKey || "";
+const abstractApiEndpoint = _pbcfg.abstractApiEndpoint || "https://ip-intelligence.abstractapi.com/v1/";
 
 // Main data structure
 let exampleIPData = {
