@@ -207,13 +207,22 @@ class PcapngParser {
 
   async fetchWithAbstractAPI(ip) {
     try {
-      const url = `${this.abstractApiEndpoint}?api_key=${this.abstractApiKey}&ip_address=${ip}`
-      const response = await fetch(url)
+      let data
+      if (typeof window !== "undefined" && window.electronAPI && window.electronAPI.geoLookup) {
+        // Desktop app: fetch via the main process so the app:// origin isn't
+        // CORS-blocked by the Worker.
+        data = await window.electronAPI.geoLookup(ip)
+      } else {
+        const url = `${this.abstractApiEndpoint}?api_key=${this.abstractApiKey}&ip_address=${ip}`
+        const response = await fetch(url)
+        data = response.ok
+          ? await response.json()
+          : { error: `API Error: ${response.status}` }
+      }
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
+      if (!data || data.error) {
         return {
-          error: errorData.message || `API Error: ${response.status}`,
+          error: (data && data.error) || "API Error",
           threatLevel: THREAT_LEVELS.SAFE,
           security: {
             is_vpn: false,
@@ -226,8 +235,6 @@ class PcapngParser {
           },
         }
       }
-
-      const data = await response.json()
 
       // Calculate threat level based on security flags
       const threatLevel = this.calculateThreatLevel(data.security)

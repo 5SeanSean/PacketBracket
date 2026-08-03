@@ -218,3 +218,24 @@ ipcMain.handle('install-npcap', async () => {
   await shell.openExternal('https://npcap.com/#download')
   return { launched: false, opened: 'https://npcap.com/#download' }
 })
+
+// ---- Geo lookups from the main process ----
+// The renderer runs under app://, which the Worker's CORS lock rejects. Doing
+// the fetch here (Node, no CORS) lets the desktop app enrich IPs and detect its
+// own location through the same proxy the website uses.
+const GEO_ENDPOINT = 'https://packetbracket-geo-proxy.packetbracket.workers.dev/'
+
+async function geoFetch(ip) {
+  // No ip => self mode (Worker uses the caller's public IP).
+  const url = ip ? `${GEO_ENDPOINT}?ip_address=${encodeURIComponent(ip)}` : GEO_ENDPOINT
+  try {
+    const resp = await fetch(url)
+    if (!resp.ok) return { error: `geo ${resp.status}` }
+    return await resp.json()
+  } catch (e) {
+    return { error: e.message }
+  }
+}
+
+ipcMain.handle('geo-lookup', (_, ip) => geoFetch(ip))
+ipcMain.handle('geo-self', () => geoFetch(null))

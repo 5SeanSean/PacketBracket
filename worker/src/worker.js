@@ -27,8 +27,18 @@ export default {
       return json({ error: "Method not allowed" }, 405, allow)
     }
 
-    const ip = new URL(request.url).searchParams.get("ip_address")
+    // If no ip_address is given, look up the CALLER's own public IP (self mode).
+    // CF-Connecting-IP is the real client IP as seen by Cloudflare — works for
+    // both the website and the desktop app's main-process requests.
+    const explicitIp = new URL(request.url).searchParams.get("ip_address")
+    let ip = explicitIp
+    if (!ip) ip = request.headers.get("CF-Connecting-IP")
     if (!ip) return json({ error: "Missing ip_address" }, 400, allow)
+
+    // Only cache the explicit-IP path. Self mode (no ip_address) has an
+    // identical URL for every caller but a caller-specific response, so it must
+    // never be edge-cached, or users would get each other's location.
+    const cacheable = !!explicitIp
 
     const upstream = new URL(UPSTREAM)
     upstream.searchParams.set("q", ip)
@@ -37,7 +47,7 @@ export default {
     let raw
     try {
       const resp = await fetch(upstream.toString(), {
-        cf: { cacheTtl: 86400, cacheEverything: true },
+        cf: cacheable ? { cacheTtl: 86400, cacheEverything: true } : { cacheTtl: 0 },
       })
       if (!resp.ok) {
         return json({ error: `Upstream ${resp.status}` }, resp.status, allow)
@@ -51,7 +61,7 @@ export default {
       status: 200,
       headers: {
         "Content-Type": "application/json",
-        "Cache-Control": "public, max-age=86400",
+        "Cache-Control": cacheable ? "public, max-age=86400" : "no-store",
         ...cors(allow),
       },
     })

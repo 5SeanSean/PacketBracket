@@ -63,6 +63,23 @@ class ViewportManager {
   }
 
   locateUser() {
+    // Desktop app: navigator.geolocation has no provider in Electron, so detect
+    // location from the machine's public IP via the main-process geo proxy.
+    if (window.electronAPI && window.electronAPI.geoSelf) {
+      window.electronAPI
+        .geoSelf()
+        .then((geo) => {
+          const lat = Number.parseFloat(geo && geo.location && geo.location.latitude)
+          const lon = Number.parseFloat(geo && geo.location && geo.location.longitude)
+          if (!Number.isNaN(lat) && !Number.isNaN(lon)) {
+            if (window.setUserLocation) window.setUserLocation(lat, lon)
+            if (window.set2DUserLocation) window.set2DUserLocation(lat, lon)
+          }
+        })
+        .catch(() => {})
+      return
+    }
+
     if (!navigator.geolocation) return
 
     navigator.geolocation.getCurrentPosition(

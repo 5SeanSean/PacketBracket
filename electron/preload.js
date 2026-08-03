@@ -5,6 +5,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   stopCapture: () => ipcRenderer.send('stop-capture'),
   listInterfaces: () => ipcRenderer.invoke('list-interfaces'),
   installNpcap: () => ipcRenderer.invoke('install-npcap'),
+  geoLookup: (ip) => ipcRenderer.invoke('geo-lookup', ip),
+  geoSelf: () => ipcRenderer.invoke('geo-self'),
   onPacket: (cb) => ipcRenderer.on('packet', (_, data) => cb(data)),
   onCaptureStatus: (cb) => ipcRenderer.on('capture-status', (_, status) => cb(status)),
   onCaptureError: (cb) => ipcRenderer.on('capture-error', (_, msg) => cb(msg)),
