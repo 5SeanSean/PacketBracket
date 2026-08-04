@@ -82,8 +82,6 @@ wrangler deploy
 
 ## Releases
 
-Pushing to `liveupdate` triggers CI to build a Windows exe and update the rolling
-**Latest Build** release. Version tags (`v*`) cut permanent versioned releases.
 Download the installer from the [Releases page](https://github.com/5SeanSean/PacketBracket/releases).
 
 > **Note:** the installer is currently **unsigned**, so Windows SmartScreen may
