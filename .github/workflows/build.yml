@@ -2,8 +2,10 @@ name: Build & Release
 
 on:
   push:
+    branches:
+      - liveupdate       # every commit updates the rolling "Latest Build" release
     tags:
-      - 'v*'
+      - 'v*'             # version tags cut a permanent versioned release
   workflow_dispatch:
 
 jobs:
@@ -49,24 +51,49 @@ jobs:
   release:
     needs: build
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
-    # action-gh-release needs write access to create the release + notes;
+    # action-gh-release needs write access to create the release + move tags;
     # the default GITHUB_TOKEN is read-only.
     permissions:
       contents: write
 
     steps:
+      - uses: actions/checkout@v4
+
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
           merge-multiple: true
 
-      - name: Create GitHub Release
+      # Version tags -> permanent release at that tag.
+      # Branch pushes  -> a single rolling release re-pointed to the new commit.
+      - name: Determine release target
+        id: rel
+        shell: bash
+        run: |
+          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+            echo "tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+            echo "name=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+            echo "notes=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=rolling" >> "$GITHUB_OUTPUT"
+            echo "name=Latest Build" >> "$GITHUB_OUTPUT"
+            echo "notes=false" >> "$GITHUB_OUTPUT"
+            # Force-move the rolling tag to this commit so the release shows the
+            # right source (action-gh-release won't move an existing tag).
+            git tag -f rolling
+            git push -f origin rolling
+          fi
+
+      - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.rel.outputs.tag }}
+          name: ${{ steps.rel.outputs.name }}
+          target_commitish: ${{ github.sha }}
           files: artifacts/**
-          generate_release_notes: true
+          generate_release_notes: ${{ steps.rel.outputs.notes }}
           prerelease: false
           make_latest: true
+          body: ${{ github.ref_type == 'tag' && '' || 'Automated build of the latest commit on liveupdate.' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
