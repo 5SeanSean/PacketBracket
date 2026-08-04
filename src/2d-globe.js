@@ -41,7 +41,7 @@
       attrEl.style.cssText = "background:rgba(13,2,8,0.8);color:#555;font-size:10px;border-top:1px solid #008f11;"
     }
 
-    console.log("Leaflet 2D map initialized")
+    window.PB_DEBUG && console.log("Leaflet 2D map initialized")
   }
 
   function populate2DGlobe(ipData, ipPackets) {

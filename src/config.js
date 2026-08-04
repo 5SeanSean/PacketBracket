@@ -2,9 +2,9 @@
 //
 // SECURITY: everything in this file ships to the browser in web mode and is
 // therefore PUBLIC. The key below is exposed to anyone who views the site or
-// the repo and MUST be rotated. The real fix is to point `abstractApiEndpoint`
+// the repo and MUST be rotated. The real fix is to point `geoApiEndpoint`
 // at a server-side proxy (Cloudflare Worker / serverless fn / Electron main)
-// that injects the key, so the browser never sees it — then `abstractApiKey`
+// that injects the key, so the browser never sees it — then `geoApiKey`
 // can be left blank here. See the security notes in the README.
 //
 // A runtime override (e.g. window.PB_CONFIG injected by the desktop app or a
@@ -13,15 +13,18 @@ const runtime = (typeof window !== "undefined" && window.PB_CONFIG) || {}
 
 // Endpoint is our Cloudflare Worker proxy (backed by ipapi.is). The key is
 // blank because the proxy handles auth server-side — the browser never sees it.
-export const abstractApiKey = runtime.abstractApiKey ?? ""
-export const abstractApiEndpoint =
-  runtime.abstractApiEndpoint ??
+export const geoApiKey = runtime.geoApiKey ?? ""
+export const geoApiEndpoint =
+  runtime.geoApiEndpoint ??
   "https://packetbracket-geo-proxy.packetbracket.workers.dev/"
 
 // Also expose on window so non-module (classic) scripts can read the same
 // values instead of hardcoding their own copy.
 if (typeof window !== "undefined") {
-  window.PB_CONFIG = { ...runtime, abstractApiKey, abstractApiEndpoint }
+  window.PB_CONFIG = { ...runtime, geoApiKey, geoApiEndpoint }
+  // Verbose logging is off by default; set window.PB_DEBUG = true in the
+  // console to re-enable the diagnostic console.log output.
+  if (typeof window.PB_DEBUG === "undefined") window.PB_DEBUG = false
 }
 
 // Security threat levels and colors

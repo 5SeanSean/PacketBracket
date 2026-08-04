@@ -9,7 +9,7 @@
     "build:win": "electron-builder --win",
     "build:mac": "electron-builder --mac",
     "build:linux": "electron-builder --linux",
-    "postinstall": "electron-rebuild -f -w cap"
+    "postinstall": "electron-rebuild -f -w cap || exit 0"
   },
   "dependencies": {
     "cap": "^0.2.1"
@@ -63,7 +63,8 @@
       "artifactName": "${productName}-Setup.${ext}"
     },
     "portable": {
-      "artifactName": "${productName}-Portable.${ext}"
+      "artifactName": "${productName}-Portable.${ext}",
+      "requestExecutionLevel": "admin"
     },
     "publish": {
       "provider": "github",

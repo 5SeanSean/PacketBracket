@@ -42,11 +42,11 @@ let targetRotationY = 0
 
 // Initialize empty globe on site load
 function initEmptyGlobe() {
-  console.log("Initializing empty 3D globe...")
+  window.PB_DEBUG && console.log("Initializing empty 3D globe...")
 
   // Make sure THREE.js is available
   if (typeof window.THREE === "undefined") {
-    console.log("THREE.js not loaded yet, waiting...")
+    window.PB_DEBUG && console.log("THREE.js not loaded yet, waiting...")
     setTimeout(() => initEmptyGlobe(), 100)
     return false
   }
@@ -175,7 +175,7 @@ function initEmptyGlobe() {
     // Start animation loop
     animate()
 
-    console.log("Empty 3D globe initialized successfully")
+    window.PB_DEBUG && console.log("Empty 3D globe initialized successfully")
     return true
   } catch (error) {
     console.error("Error initializing empty 3D globe:", error)
@@ -187,7 +187,7 @@ function initEmptyGlobe() {
 
 // Populate globe with IP data
 function populateGlobe(ipData, ipPackets) {
-  console.log("Populating 3D globe with IP data:", ipData)
+  window.PB_DEBUG && console.log("Populating 3D globe with IP data:", ipData)
 
   // Store current IP data globally for marker creation
   window.currentIPData = ipData
@@ -275,7 +275,7 @@ function populateGlobe(ipData, ipPackets) {
   userMarker = createUserMarker(latLonToVector3(userLocation.latitude, userLocation.longitude, 1.01))
   globeGroup.add(userMarker)
 
-  console.log("3D globe populated with data successfully")
+  window.PB_DEBUG && console.log("3D globe populated with data successfully")
 }
 
 // Clear all IP data from globe
@@ -475,7 +475,7 @@ function selectMarker(marker, ip) {
   const lat = marker.userData.originalLat;
   const lon = marker.userData.originalLon;
   
-  console.log(`Selecting IP ${ip} at lat: ${lat}, lon: ${lon}`);
+  window.PB_DEBUG && console.log(`Selecting IP ${ip} at lat: ${lat}, lon: ${lon}`);
 
   // Calculate the absolute rotation needed to bring the selected location to the front
   // Note: We need to negate the longitude because Three.js uses left-handed coordinates

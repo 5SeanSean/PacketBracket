@@ -6,14 +6,11 @@ const progressContainer = document.getElementById("progressContainer")
 const progressFill = document.getElementById("progressFill")
 const progressText = document.getElementById("progressText")
 
-// Create globe container 
+// Create globe container
 let globeContainer
 
-const sidePanelScript = document.createElement("script")
-sidePanelScript.src = "src/side-panel.js"
-document.head.appendChild(sidePanelScript)
-
-
+// Note: side-panel.js is loaded once via index.html; do not inject it again
+// here or its top-level declarations (e.g. _selectedIP) collide.
 
 document.addEventListener("DOMContentLoaded", () => {
   const globeContainer = document.getElementById("globe")
@@ -86,7 +83,7 @@ threeScript.onload = () => {
 async function handleFile(file) {
   if (!file) return
 
-  console.log("Handling file:", file.name, file.size, "bytes")
+  window.PB_DEBUG && console.log("Handling file:", file.name, file.size, "bytes")
 
   if (results) results.innerHTML = ""
   if (progressContainer) progressContainer.style.display = "block"

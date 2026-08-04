@@ -33,7 +33,7 @@ class ViewportManager {
   async initializeGlobes() {
     if (this.globesInitialized) return
 
-    console.log("Initializing globes on site load...")
+    window.PB_DEBUG && console.log("Initializing globes on site load...")
 
     try {
       // Wait for required libraries to load
@@ -42,12 +42,12 @@ class ViewportManager {
       // Initialize both globe systems without data
       if (window.initEmptyGlobe) {
         await window.initEmptyGlobe()
-        console.log("3D globe initialized")
+        window.PB_DEBUG && console.log("3D globe initialized")
       }
 
       if (window.initEmpty2DGlobe) {
         await window.initEmpty2DGlobe()
-        console.log("2D globe initialized")
+        window.PB_DEBUG && console.log("2D globe initialized")
       }
 
       this.globesInitialized = true
@@ -112,7 +112,7 @@ class ViewportManager {
   switchView(viewType) {
     if (this.currentView === viewType) return
 
-    console.log(`Switching to ${viewType} view`)
+    window.PB_DEBUG && console.log(`Switching to ${viewType} view`)
 
     // Update UI buttons
     document.getElementById("globe3D").classList.toggle("active", viewType === "3d")
@@ -148,7 +148,7 @@ class ViewportManager {
   populateCurrentView() {
     if (!this.globesInitialized || !this.currentIPData) return
 
-    console.log(`Populating ${this.currentView} view with data`)
+    window.PB_DEBUG && console.log(`Populating ${this.currentView} view with data`)
 
     if (this.currentView === "3d" && window.populateGlobe) {
       window.populateGlobe(this.currentIPData, this.currentIPPackets)

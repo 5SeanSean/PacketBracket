@@ -9,6 +9,8 @@
 
   let status = "idle" // idle | connecting | live | no_driver | error
   let canInstallNpcap = false // set from capture-error payload
+  let warningMsg = "" // non-fatal note shown during live capture (e.g. admin)
+  let errorMsg = "" // last error message, shown in the error state
 
   // ---- Button rendering ----
 
@@ -33,7 +35,10 @@
     }
 
     if (status === "live") {
-      el.innerHTML = `<button id="liveCaptureStop" style="${BTN_BASE}background:#003300;color:#ff4444;border:1px solid #ff4444;">Stop Live Capture</button>`
+      const warn = warningMsg
+        ? `<p style="color:#ffff00;font-size:11px;margin-top:6px;text-align:center;font-family:'Courier New',monospace;">${warningMsg}</p>`
+        : ""
+      el.innerHTML = `<button id="liveCaptureStop" style="${BTN_BASE}background:#003300;color:#ff4444;border:1px solid #ff4444;">Stop Live Capture</button>${warn}`
       document.getElementById("liveCaptureStop").onclick = stopCapture
       return
     }
@@ -53,7 +58,10 @@
     }
 
     if (status === "error") {
-      el.innerHTML = `<button id="liveCaptureStart" style="${BTN_BASE}background:#1a0000;color:#ff4444;border:1px solid #ff4444;">Retry Live Capture</button>`
+      const msg = errorMsg
+        ? `<p style="color:#ff4444;font-size:11px;margin-top:4px;text-align:center;font-family:'Courier New',monospace;">${errorMsg}</p>`
+        : ""
+      el.innerHTML = `<button id="liveCaptureStart" style="${BTN_BASE}background:#1a0000;color:#ff4444;border:1px solid #ff4444;">Retry Live Capture</button>${msg}`
       document.getElementById("liveCaptureStart").onclick = startCapture
       return
     }
@@ -74,6 +82,8 @@
     if (!IS_ELECTRON) return // web mode is download-only
 
     status = "connecting"
+    warningMsg = ""
+    errorMsg = ""
     renderBtn()
 
     window.electronAPI.removeAllListeners()
@@ -87,9 +97,15 @@
       // err is { message, driverMissing?, canInstall? }
       const info = typeof err === "string" ? { message: err } : (err || {})
       canInstallNpcap = !!info.canInstall
+      errorMsg = info.message || ""
       status = info.driverMissing ? "no_driver" : "error"
       renderBtn()
       console.error("[capture]", info.message)
+    })
+
+    window.electronAPI.onCaptureWarning(function (msg) {
+      warningMsg = msg || ""
+      renderBtn()
     })
 
     window.electronAPI.onPacket(function (evt) {
@@ -167,7 +183,7 @@
     }
     const parser = window._liveCaptureParser
 
-    parser.fetchWithAbstractAPI(ip).then(function (geo) {
+    parser.fetchGeoIntelligence(ip).then(function (geo) {
       enrichPending.delete(ip)
       if (!geo || geo.error || geo.isPrivate || geo.isSpecial || geo.isMulticast) return
       parser.ipCache[ip] = geo

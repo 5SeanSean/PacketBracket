@@ -1,7 +1,7 @@
 // src/pcapng-parser.js
 
 // IP-intelligence config comes from the single source of truth in config.js.
-import { abstractApiKey, abstractApiEndpoint, THREAT_LEVELS } from "./config.js"
+import { geoApiKey, geoApiEndpoint, THREAT_LEVELS } from "./config.js"
 
 class PcapngParser {
   constructor() {
@@ -14,9 +14,9 @@ class PcapngParser {
     this.ipPackets = new Map()
     this.maxIPsToProcess = Number.POSITIVE_INFINITY
 
-    // Abstract API Configuration
-    this.abstractApiKey = abstractApiKey
-    this.abstractApiEndpoint = abstractApiEndpoint
+    // Geo API config (single source: config.js)
+    this.geoApiKey = geoApiKey
+    this.geoApiEndpoint = geoApiEndpoint
 
     this.requestDelay = 100 // 100ms delay between requests
   }
@@ -26,7 +26,7 @@ class PcapngParser {
     let offset = 0
     const totalSize = dataView.byteLength
 
-    console.log("Starting parse of", totalSize, "bytes")
+    window.PB_DEBUG && console.log("Starting parse of", totalSize, "bytes")
 
     try {
       if (totalSize < 12) {
@@ -66,8 +66,8 @@ class PcapngParser {
         }
       }
 
-      console.log("Parsed", blockCount, "blocks")
-      console.log("Found", this.uniqueIPs.size, "unique IP addresses")
+      window.PB_DEBUG && console.log("Parsed", blockCount, "blocks")
+      window.PB_DEBUG && console.log("Found", this.uniqueIPs.size, "unique IP addresses")
 
       await this.fetchIntelligenceForIPs()
     } catch (error) {
@@ -174,7 +174,7 @@ class PcapngParser {
       }
 
       try {
-        const intelligenceData = await this.fetchWithAbstractAPI(ip)
+        const intelligenceData = await this.fetchGeoIntelligence(ip)
         this.ipCache[ip] = intelligenceData
 
         // Save cache periodically
@@ -205,7 +205,7 @@ class PcapngParser {
     this.saveIpCache()
   }
 
-  async fetchWithAbstractAPI(ip) {
+  async fetchGeoIntelligence(ip) {
     try {
       let data
       if (typeof window !== "undefined" && window.electronAPI && window.electronAPI.geoLookup) {
@@ -213,7 +213,7 @@ class PcapngParser {
         // CORS-blocked by the Worker.
         data = await window.electronAPI.geoLookup(ip)
       } else {
-        const url = `${this.abstractApiEndpoint}?api_key=${this.abstractApiKey}&ip_address=${ip}`
+        const url = `${this.geoApiEndpoint}?api_key=${this.geoApiKey}&ip_address=${ip}`
         const response = await fetch(url)
         data = response.ok
           ? await response.json()
@@ -267,7 +267,7 @@ class PcapngParser {
       }
     } catch (error) {
       return {
-        error: "Abstract API failed",
+        error: "Geo lookup failed",
         threatLevel: THREAT_LEVELS.SAFE,
         security: {
           is_vpn: false,

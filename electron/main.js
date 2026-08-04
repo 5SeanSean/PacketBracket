@@ -38,6 +38,19 @@ let mainWindow = null
 let capture = null
 let capturing = false
 
+// Safe send: the window may be destroyed (not just null) during shutdown, so
+// guard both the window and its webContents before sending.
+function sendToRenderer(channel, payload) {
+  if (
+    mainWindow &&
+    !mainWindow.isDestroyed() &&
+    mainWindow.webContents &&
+    !mainWindow.webContents.isDestroyed()
+  ) {
+    mainWindow.webContents.send(channel, payload)
+  }
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1400,
@@ -57,6 +70,9 @@ function createWindow() {
   mainWindow.loadURL('app://./index.html')
   mainWindow.setMenu(null)
 
+  // In dev (npm start), open DevTools so the console/logs are visible.
+  if (!app.isPackaged) mainWindow.webContents.openDevTools({ mode: 'detach' })
+
   mainWindow.on('closed', () => {
     stopCapture()
     mainWindow = null
@@ -74,9 +90,14 @@ app.whenReady().then(() => {
   createWindow()
 })
 
+// Always release the capture handle before quitting (Cmd+Q, taskbar close, etc.)
+app.on('before-quit', () => stopCapture())
+
 app.on('window-all-closed', () => {
   stopCapture()
-  if (process.platform !== 'darwin') app.quit()
+  // Hard-exit on Windows/Linux: the native cap (pcap) thread can hold the
+  // event loop open and leave the process running after a graceful quit.
+  if (process.platform !== 'darwin') app.exit(0)
 })
 
 app.on('activate', () => {
@@ -101,11 +122,43 @@ function getProtocolName(proto) {
   return map[proto] || 'OTHER'
 }
 
-function startCapture(iface) {
+// Npcap restricts capture to Administrators by default, so a non-elevated
+// process opens the adapter but receives no packets. Detect elevation so we can
+// warn the user instead of failing silently. `net session` needs admin.
+function isElevated() {
+  if (process.platform !== 'win32') return true
+  try {
+    require('child_process').execSync('net session', { stdio: 'ignore' })
+    return true
+  } catch (_) {
+    return false
+  }
+}
+
+// Best-effort primary outbound IPv4 (the interface used to reach the internet),
+// so we capture on the active adapter instead of a random virtual one.
+function getPrimaryIPv4() {
+  return new Promise((resolve) => {
+    try {
+      const socket = require('dgram').createSocket('udp4')
+      socket.once('error', () => { try { socket.close() } catch (_) {} ; resolve(null) })
+      socket.connect(53, '8.8.8.8', () => {
+        let addr = null
+        try { addr = socket.address().address } catch (_) {}
+        try { socket.close() } catch (_) {}
+        resolve(addr && addr !== '0.0.0.0' ? addr : null)
+      })
+    } catch (_) {
+      resolve(null)
+    }
+  })
+}
+
+async function startCapture(iface) {
   if (capturing) return
 
   if (!loadCap()) {
-    mainWindow?.webContents.send('capture-error', {
+    sendToRenderer('capture-error', {
       message: 'Npcap is required for live capture',
       driverMissing: true,
       canInstall: !!npcapInstallerPath(),
@@ -115,9 +168,16 @@ function startCapture(iface) {
 
   let device
   try {
-    device = iface || Cap.findDevice()
+    if (iface) {
+      device = iface
+    } else {
+      // Prefer the adapter that owns our primary outbound IP.
+      const primaryIP = await getPrimaryIPv4()
+      device = (primaryIP && Cap.findDevice(primaryIP)) || Cap.findDevice()
+      console.log('[capture] primaryIP=%s -> device=%s', primaryIP, device)
+    }
   } catch (e) {
-    mainWindow?.webContents.send('capture-error', {
+    sendToRenderer('capture-error', {
       message: 'Could not find a network interface. Npcap is required.',
       driverMissing: true,
       canInstall: !!npcapInstallerPath(),
@@ -132,11 +192,27 @@ function startCapture(iface) {
     const linkType = capture.open(device, '', 10 * 1024 * 1024, buffer)
     capture.setMinBytes && capture.setMinBytes(0)
     capturing = true
+    console.log('[capture] opened device=%s linkType=%s', device, linkType)
 
-    mainWindow?.webContents.send('capture-status', 'live')
+    let seen = 0
+    let forwarded = 0
+
+    sendToRenderer('capture-status', 'live')
+
+    // Non-fatal heads-up: without admin, Npcap typically delivers no packets.
+    if (!isElevated()) {
+      sendToRenderer(
+        'capture-warning',
+        'Not running as Administrator — capture may receive no packets. Close and run PacketBracket as administrator.'
+      )
+    }
 
     capture.on('packet', (nbytes) => {
       try {
+        seen++
+        if (seen === 1 || seen % 250 === 0) {
+          console.log('[capture] packets seen=%d forwarded=%d linkType=%s', seen, forwarded, linkType)
+        }
         if (linkType !== 'ETHERNET') return
 
         const eth = decoders.Ethernet(buffer)
@@ -151,7 +227,8 @@ function startCapture(iface) {
         // Skip traffic where both sides are private
         if (srcPrivate && dstPrivate) return
 
-        mainWindow?.webContents.send('packet', {
+        forwarded++
+        sendToRenderer('packet', {
           type: 'packet',
           src,
           dst,
@@ -165,20 +242,20 @@ function startCapture(iface) {
     })
 
     capture.on('error', (err) => {
-      mainWindow?.webContents.send('capture-error', { message: err.message })
+      sendToRenderer('capture-error', { message: err.message })
       stopCapture()
     })
   } catch (err) {
     const driverMissing = err.message.includes('Npcap') || err.message.includes('WinPcap') || err.message.includes('pcap')
     if (driverMissing) {
       // Renderer decides whether to offer the one-click bundled installer.
-      mainWindow?.webContents.send('capture-error', {
+      sendToRenderer('capture-error', {
         message: 'Npcap is required for live capture',
         driverMissing: true,
         canInstall: !!npcapInstallerPath(),
       })
     } else {
-      mainWindow?.webContents.send('capture-error', { message: err.message })
+      sendToRenderer('capture-error', { message: err.message })
     }
     capture = null
   }
@@ -190,10 +267,12 @@ function stopCapture() {
     capture = null
   }
   capturing = false
-  mainWindow?.webContents.send('capture-status', 'idle')
+  sendToRenderer('capture-status', 'idle')
 }
 
-ipcMain.on('start-capture', (_, iface) => startCapture(iface))
+ipcMain.on('start-capture', (_, iface) => {
+  startCapture(iface).catch((err) => console.error('[capture] start error:', err))
+})
 ipcMain.on('stop-capture', () => stopCapture())
 ipcMain.handle('list-interfaces', () => {
   if (!loadCap()) return []
