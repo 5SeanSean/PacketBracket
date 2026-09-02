@@ -61,30 +61,48 @@ export default {
       status: 200,
       headers: {
         "Content-Type": "application/json",
-        "Cache-Control": cacheable ? "public, max-age=86400" : "no-store",
+        // Don't let the browser cache the normalized response: the edge cache
+        // above already protects the upstream quota, and a short-lived bug (e.g.
+        // a shape change) shouldn't get pinned in every visitor's browser for a
+        // day. Edge caching stays; browser always gets a fresh normalize().
+        "Cache-Control": "no-store",
         ...cors(allow),
       },
     })
   },
 }
 
-// Map ipapi.is -> AbstractAPI shape expected by pcapng-parser.js
+// Map ipapi.is -> AbstractAPI shape expected by pcapng-parser.js.
+// Handles BOTH response shapes:
+//   - free/keyless tier: flat fields (d.city, d.lat, d.asn is a string, ...)
+//   - paid/keyed tier:   nested objects (d.location.latitude, d.asn.org, ...)
 function normalize(d) {
-  const loc = d.location || {}
-  const asn = d.asn || {}
-  const company = d.company || {}
+  const locObj = d.location || {}
+  const asnObj = typeof d.asn === "object" && d.asn ? d.asn : {}
+  const companyObj = typeof d.company === "object" && d.company ? d.company : {}
+
+  // asn may be a string like "AS20940 Akamai International B.V." (free tier)
+  const asnStr = typeof d.asn === "string" ? d.asn : ""
+  const asnNumberFromStr = asnStr.match(/AS(\d+)/i)
+  const companyStr = typeof d.company === "string" ? d.company : ""
+
   return {
     location: {
-      country: loc.country ?? "Unknown",
-      city: loc.city ?? "Unknown",
-      region: loc.state ?? "Unknown",
-      latitude: loc.latitude ?? 0,
-      longitude: loc.longitude ?? 0,
+      country: locObj.country ?? d.country ?? "Unknown",
+      city: locObj.city ?? d.city ?? "Unknown",
+      region: locObj.state ?? d.region ?? "Unknown",
+      latitude: locObj.latitude ?? d.lat ?? 0,
+      longitude: locObj.longitude ?? d.lon ?? 0,
     },
-    company: { name: company.name ?? asn.org ?? "Unknown" },
-    asn: { name: asn.org ?? asn.descr ?? "Unknown", asn: asn.asn },
-    timezone: { name: loc.timezone ?? "Unknown" },
-    flag: { emoji: flagEmoji(loc.country_code) },
+    company: {
+      name: companyObj.name ?? asnObj.org ?? companyStr ?? asnStr ?? "Unknown",
+    },
+    asn: {
+      name: asnObj.org ?? asnObj.descr ?? asnStr ?? "Unknown",
+      asn: asnObj.asn ?? (asnNumberFromStr ? Number(asnNumberFromStr[1]) : undefined),
+    },
+    timezone: { name: locObj.timezone ?? d.timezone ?? "Unknown" },
+    flag: { emoji: flagEmoji(locObj.country_code ?? d.country_code) },
     security: {
       is_vpn: !!d.is_vpn,
       is_proxy: !!d.is_proxy,
@@ -107,8 +125,14 @@ function flagEmoji(cc) {
 
 function allowedOrigin(origin, allowlist) {
   if (!allowlist) return "*"
+  // Always allow local dev origins (any port on localhost / 127.0.0.1 / [::1]).
+  if (/^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(origin)) {
+    return origin
+  }
   const list = allowlist.split(",").map((s) => s.trim()).filter(Boolean)
-  return list.includes(origin) ? origin : list[0] || "*"
+  // Echo the origin only if it's explicitly allowed; otherwise deny cleanly
+  // (returning "null" makes the browser block instead of echoing a wrong host).
+  return list.includes(origin) ? origin : "null"
 }
 
 function cors(origin) {

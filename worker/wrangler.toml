@@ -5,7 +5,9 @@ compatibility_date = "2024-11-01"
 # Restrict which sites may call the proxy. Comma-separated origins (scheme+host,
 # no path). Includes localhost for local testing.
 [vars]
-ALLOWED_ORIGINS = "https://5seansean.github.io,http://localhost:8099"
+# localhost/127.0.0.1 (any port) is always allowed by the Worker for dev; these
+# are the explicit production origins.
+ALLOWED_ORIGINS = "https://5seansean.github.io,https://packetbracket.tech,https://www.packetbracket.tech"
 
 # Backend is ipapi.is. Free tier is keyless (1,000 lookups/day). Adding a key
 # raises the limit — store it as a SECRET, not a var:

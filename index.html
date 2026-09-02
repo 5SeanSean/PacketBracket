@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PCAP-NG IP Analyzer</title>
+    <title>PacketBracket — IP Analyzer</title>
     <link rel="stylesheet" href="src/styles.css">
 
     <!-- Leaflet for 2D map -->
@@ -12,14 +12,10 @@
     <style>
       .leaflet-packetbracket-tooltip { background:transparent; border:none; box-shadow:none; padding:0; }
       .leaflet-packetbracket-tooltip::before { display:none; }
-      @keyframes leaflet-user-pulse {
-        0%,100% { box-shadow: 0 0 6px #64ffda, 0 0 2px #64ffda; }
-        50%      { box-shadow: 0 0 18px #64ffda, 0 0 8px #64ffda; }
-      }
     </style>
 </head>
 <body>
-    <input type="file" id="fileInput" accept=".pcapng,.pcap" style="display: none;">
+    <input type="file" id="fileInput" accept=".pcapng,.pcap,.cap,.dmp" style="display: none;">
     <div class="main-container">
         <div class="globe-container">
             <div id="globe"></div>
@@ -34,7 +30,7 @@
         <div class="side-panel-container"></div>
     </div>
 
-    <div id="textureStatus" style="display: none; position: fixed; bottom: 20px; right: 20px; background: rgba(0,0,0,0.7); color: white; padding: 10px; border-radius: 5px;"></div>
+    <div id="textureStatus"></div>
 
     <script type="module" src="src/app.js"></script>
     <script src="src/side-panel.js"></script>

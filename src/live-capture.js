@@ -14,8 +14,9 @@
 
   // ---- Button rendering ----
 
+  const FONT = "'SF Mono','JetBrains Mono',Menlo,Consolas,monospace"
   const BTN_BASE =
-    "width:100%;padding:10px 16px;border-radius:4px;font-size:14px;font-weight:bold;cursor:pointer;font-family:'Courier New',monospace;transition:background 0.2s;"
+    "width:100%;padding:10px 16px;border-radius:4px;font-size:13px;font-weight:600;letter-spacing:0.3px;cursor:pointer;font-family:" + FONT + ";transition:background 0.15s,border-color 0.15s,color 0.15s;"
 
   function renderBtn() {
     const el = document.getElementById("liveCaptureBtn")
@@ -24,32 +25,31 @@
     // Web mode: this is a viewer. Live capture needs the desktop app.
     if (!IS_ELECTRON) {
       el.innerHTML = `
-        <a href="${DOWNLOAD_URL}" style="${BTN_BASE}display:block;box-sizing:border-box;text-align:center;background:#003300;color:#00ff41;border:1px solid #00ff41;text-decoration:none;" title="Download the desktop app for built-in live capture">⬇ Get Desktop App for Live Capture</a>
-        <p style="color:#00ff41;font-size:11px;margin-top:6px;text-align:center;font-family:'Courier New',monospace;opacity:0.7;">Live capture runs in the free desktop app.</p>`
+        <a href="${DOWNLOAD_URL}" style="${BTN_BASE}display:block;box-sizing:border-box;text-align:center;background:#141815;color:#3fb950;border:1px solid #2ea043;text-decoration:none;" title="Download the desktop app for built-in live capture">Get Desktop App for Live Capture</a>`
       return
     }
 
     if (status === "connecting") {
-      el.innerHTML = `<button disabled style="${BTN_BASE}background:#003300;color:#ffff00;border:1px solid #ffff00;cursor:wait;">Connecting...</button>`
+      el.innerHTML = `<button disabled style="${BTN_BASE}background:#141815;color:#d29922;border:1px solid #4a3d18;cursor:wait;">Connecting...</button>`
       return
     }
 
     if (status === "live") {
       const warn = warningMsg
-        ? `<p style="color:#ffff00;font-size:11px;margin-top:6px;text-align:center;font-family:'Courier New',monospace;">${warningMsg}</p>`
+        ? `<p style="color:#d29922;font-size:11px;margin-top:8px;text-align:center;font-family:${FONT};">${warningMsg}</p>`
         : ""
-      el.innerHTML = `<button id="liveCaptureStop" style="${BTN_BASE}background:#003300;color:#ff4444;border:1px solid #ff4444;">Stop Live Capture</button>${warn}`
+      el.innerHTML = `<button id="liveCaptureStop" style="${BTN_BASE}background:#141815;color:#f85149;border:1px solid #5a2a28;">Stop Live Capture</button>${warn}`
       document.getElementById("liveCaptureStop").onclick = stopCapture
       return
     }
 
     if (status === "no_driver") {
       const installBtn = canInstallNpcap
-        ? `<button id="npcapInstall" style="${BTN_BASE}margin-top:6px;background:#003300;color:#ffff00;border:1px solid #ffff00;">Install Npcap</button>`
-        : `<a href="https://npcap.com/#download" target="_blank" style="display:block;margin-top:6px;text-align:center;color:#ffff00;font-size:11px;font-family:'Courier New',monospace;">Install Npcap from npcap.com</a>`
+        ? `<button id="npcapInstall" style="${BTN_BASE}margin-top:8px;background:#141815;color:#d29922;border:1px solid #4a3d18;">Install Npcap</button>`
+        : `<a href="https://npcap.com/#download" target="_blank" style="display:block;margin-top:8px;text-align:center;color:#d29922;font-size:11px;font-family:${FONT};">Install Npcap from npcap.com</a>`
       el.innerHTML = `
-        <button id="liveCaptureStart" style="${BTN_BASE}background:#1a1a00;color:#ffff00;border:1px solid #ffff00;">Retry Live Capture</button>
-        <p style="color:#ffff00;font-size:11px;margin-top:4px;text-align:center;font-family:'Courier New',monospace;">Npcap driver required for live capture.</p>
+        <button id="liveCaptureStart" style="${BTN_BASE}background:#141815;color:#d29922;border:1px solid #4a3d18;">Retry Live Capture</button>
+        <p style="color:#8b948d;font-size:11px;margin-top:8px;text-align:center;font-family:${FONT};">Npcap driver required for live capture.</p>
         ${installBtn}`
       document.getElementById("liveCaptureStart").onclick = startCapture
       const ib = document.getElementById("npcapInstall")
@@ -59,15 +59,15 @@
 
     if (status === "error") {
       const msg = errorMsg
-        ? `<p style="color:#ff4444;font-size:11px;margin-top:4px;text-align:center;font-family:'Courier New',monospace;">${errorMsg}</p>`
+        ? `<p style="color:#f85149;font-size:11px;margin-top:8px;text-align:center;font-family:${FONT};">${errorMsg}</p>`
         : ""
-      el.innerHTML = `<button id="liveCaptureStart" style="${BTN_BASE}background:#1a0000;color:#ff4444;border:1px solid #ff4444;">Retry Live Capture</button>${msg}`
+      el.innerHTML = `<button id="liveCaptureStart" style="${BTN_BASE}background:#141815;color:#f85149;border:1px solid #5a2a28;">Retry Live Capture</button>${msg}`
       document.getElementById("liveCaptureStart").onclick = startCapture
       return
     }
 
     // idle
-    el.innerHTML = `<button id="liveCaptureStart" style="${BTN_BASE}background:#003300;color:#00ff41;border:1px solid #00ff41;">Start Live Capture</button>`
+    el.innerHTML = `<button id="liveCaptureStart" style="${BTN_BASE}background:#141815;color:#3fb950;border:1px solid #2ea043;">Start Live Capture</button>`
     document.getElementById("liveCaptureStart").onclick = startCapture
   }
 

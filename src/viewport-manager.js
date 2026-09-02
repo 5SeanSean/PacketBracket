@@ -80,7 +80,10 @@ class ViewportManager {
       return
     }
 
-    if (!navigator.geolocation) return
+    if (!navigator.geolocation) {
+      this.selfLocateViaIP()
+      return
+    }
 
     navigator.geolocation.getCurrentPosition(
       (pos) => {
@@ -90,10 +93,38 @@ class ViewportManager {
         if (window.set2DUserLocation) window.set2DUserLocation(lat, lon)
       },
       (err) => {
-        console.info("Geolocation not available:", err.message)
+        // Denied, timed out, or otherwise unavailable — fall back to
+        // approximate location from the user's public IP via the geo proxy.
+        console.info("Geolocation not available:", err.message, "- trying IP lookup")
+        this.selfLocateViaIP()
       },
       { timeout: 10000 }
     )
+  }
+
+  // Browser self-location fallback: ask the Worker to geolocate the caller's
+  // own public IP (self mode = request with no ip_address).
+  selfLocateViaIP() {
+    const endpoint = window.PB_CONFIG && window.PB_CONFIG.geoApiEndpoint
+    if (!endpoint) return
+
+    console.info("[location] Falling back to approximate location from your public IP")
+    fetch(endpoint, { cache: "no-store" })
+      .then((resp) => (resp.ok ? resp.json() : null))
+      .then((geo) => {
+        const lat = Number.parseFloat(geo && geo.location && geo.location.latitude)
+        const lon = Number.parseFloat(geo && geo.location && geo.location.longitude)
+        if (!Number.isNaN(lat) && !Number.isNaN(lon) && !(lat === 0 && lon === 0)) {
+          console.info(`[location] IP-based location: ${geo.location.city || "?"}, ${geo.location.country || "?"} (${lat}, ${lon})`)
+          if (window.setUserLocation) window.setUserLocation(lat, lon)
+          if (window.set2DUserLocation) window.set2DUserLocation(lat, lon)
+        } else {
+          console.info("[location] IP lookup returned no usable location; using data centroid")
+        }
+      })
+      .catch(() => {
+        console.info("[location] IP lookup failed; using data centroid")
+      })
   }
 
   waitForLibraries() {

@@ -1,20 +1,38 @@
-/* Main Layout - Hacker Terminal Style */
+/* PacketBracket — dark analyst UI */
 :root {
-  --hacker-green: #00ff41;
-  --hacker-dark: #0d0208;
-  --hacker-bg: #0a0a0a;
-  --hacker-text: #cccccc;
-  --hacker-accent: #008f11;
-  --hacker-highlight: #00ff9d;
+  --bg: #0a0c0b;
+  --panel: #0f1210;
+  --panel-2: #141815;
+  --panel-3: #191e1a;
+  --border: #262d28;
+  --border-strong: #333c36;
+  --text: #d6dad7;
+  --text-dim: #8b948d;
+  --text-faint: #5f6862;
+  --accent: #3fb950;
+  --accent-dim: #2ea043;
+  --accent-soft: rgba(63, 185, 80, 0.12);
+  --danger: #f85149;
+  --danger-soft: rgba(248, 81, 73, 0.1);
+  --warn: #d29922;
+  --info: #58a6ff;
+  --mono: "SF Mono", "JetBrains Mono", "Cascadia Code", Menlo, Consolas, "Courier New", monospace;
+}
+
+* {
+  box-sizing: border-box;
 }
 
 body {
   overflow: hidden;
   height: 100vh;
   margin: 0;
-  font-family: 'Courier New', monospace;
-  background: var(--hacker-bg);
-  color: var(--hacker-text);
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.5;
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
 }
 
 .main-container {
@@ -53,74 +71,76 @@ body {
 }
 
 .viewport-controls {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    z-index: 1000;
-    pointer-events: auto;
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 1000;
+  pointer-events: auto;
 }
 
-/* Globe Type Selector */
+/* Globe / view toggle buttons */
 .globe-type-selector {
-    position: absolute;
-    top: 20px;
-    right: 20px;
-    z-index: 100;
-    display: flex;
-    gap: 5px;
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 100;
+  display: flex;
+  gap: 6px;
 }
 
 .globe-btn {
-    background: rgba(0, 0, 0, 0.7);
-    color: #00ff41;
-    border: 1px solid #00ff41;
-    padding: 5px 10px;
-    margin: 0 5px;
-    cursor: pointer;
-    font-family: monospace;
+  background: rgba(10, 12, 11, 0.85);
+  color: var(--text-dim);
+  border: 1px solid var(--border-strong);
+  padding: 6px 14px;
+  margin: 0;
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.3px;
+  border-radius: 4px;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
 }
 
 .globe-btn:hover {
-    background: rgba(0, 255, 65, 0.1);
+  color: var(--text);
+  border-color: var(--accent-dim);
 }
 
 .globe-btn.active {
-    background: #00ff41;
-    color: #000;
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: var(--accent-dim);
 }
 
-/* 2D Globe Canvas */
 #globe canvas {
-    width: 100%;
-    height: 100%;
-    display: block;
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 
 #cleanGlobe {
-    margin-left: 10px;
-    background: rgba(255, 82, 82, 0.2);
-    border-color: #ff5252;
+  margin-left: 8px;
+  color: var(--danger);
+  border-color: rgba(248, 81, 73, 0.5);
 }
 
 #cleanGlobe:hover {
-    background: rgba(255, 82, 82, 0.3);
+  border-color: var(--danger);
+  background: var(--danger-soft);
 }
 
-#cleanGlobe:active {
-    background: rgba(255, 82, 82, 0.4);
-}
-
-/* Side Panel - Hacker Terminal */
+/* Side panel */
 .side-panel-container {
   width: calc(100vw - 100vh);
   height: 100vh;
-  background: var(--hacker-dark);
-  border-left: 1px solid var(--hacker-green);
+  background: var(--panel);
+  border-left: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   overflow: hidden;
   order: 2;
-  font-family: 'Courier New', monospace;
+  font-family: var(--mono);
 }
 
 .side-panel {
@@ -130,199 +150,211 @@ body {
   overflow: hidden;
 }
 
-/* Upload Area - Cyberpunk Style */
+/* Upload area */
 .upload-area-container {
-  padding: 20px;
-  background: rgba(13, 2, 8, 0.8);
-  border-bottom: 1px solid var(--hacker-accent);
+  padding: 16px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
 }
 
 .upload-area {
-  border: 2px dashed var(--hacker-green);
-  padding: 30px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 6px;
+  padding: 28px 20px;
   text-align: center;
-  background: rgba(0, 0, 0, 0.3);
-  transition: all 0.3s ease;
-  margin-bottom: 0;
+  background: var(--panel-2);
+  transition: border-color 0.15s ease, background 0.15s ease;
   cursor: pointer;
-  color: var(--hacker-text);
+  color: var(--text-dim);
 }
 
 .upload-area:hover {
-  border-color: var(--hacker-highlight);
-  background: rgba(0, 255, 65, 0.05);
+  border-color: var(--accent-dim);
+  background: var(--panel-3);
 }
 
 .upload-area.dragover {
-  background: rgba(0, 255, 65, 0.1);
-  border-color: var(--hacker-highlight);
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+.upload-area p {
+  font-size: 13px;
+  color: var(--text-dim);
+  margin: 0 0 18px 0;
 }
 
 .upload-btn {
   background: transparent;
-  color: var(--hacker-green);
-  padding: 12px 30px;
-  border: 1px solid var(--hacker-green);
+  color: var(--text);
+  padding: 9px 22px;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
   cursor: pointer;
-  font-family: 'Courier New', monospace;
-  font-size: 16px;
-  font-weight: bold;
-  transition: all 0.3s ease;
-  margin-top: 15px;
-  text-transform: uppercase;
-  letter-spacing: 1px;
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 600;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+  letter-spacing: 0.4px;
 }
 
 .upload-btn:hover {
-  background: rgba(0, 255, 65, 0.1);
-  text-shadow: 0 0 5px var(--hacker-green);
+  border-color: var(--accent-dim);
+  color: var(--accent);
+  background: var(--accent-soft);
 }
 
-/* File Summary - Terminal Output */
+/* File summary */
 .summary {
-  background: var(--hacker-dark);
-  color: var(--hacker-green);
-  padding: 20px;
-  border-bottom: 1px solid var(--hacker-accent);
+  background: var(--panel);
+  color: var(--text);
+  padding: 16px;
+  border-bottom: 1px solid var(--border);
 }
 
 .summary h2 {
-  margin: 0 0 10px 0;
-  font-size: 1.2em;
-  color: var(--hacker-highlight);
+  margin: 0 0 12px 0;
+  font-size: 11px;
+  color: var(--text-faint);
   text-transform: uppercase;
-  letter-spacing: 1px;
+  letter-spacing: 1.2px;
+  font-weight: 600;
 }
 
 .info-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 10px;
+  gap: 8px 16px;
 }
 
 .info-item {
-  padding: 8px;
-  font-size: 0.9em;
+  font-size: 12px;
 }
 
-/* IP List Container - Data Matrix */
+.summary .info-grid > div,
+.info-item {
+  color: var(--text-dim);
+}
+
+.summary strong,
+.info-item strong,
+.location-info strong,
+.protocols strong {
+  color: var(--text-faint);
+  font-weight: 600;
+}
+
+/* IP list */
 .ip-list-container {
   flex: 1;
   overflow-y: auto;
-  padding: 0 20px;
-  background: linear-gradient(
-    to bottom,
-    rgba(0, 0, 0, 0.1),
-    rgba(0, 0, 0, 0.3)
-  );
+  padding: 0 16px 16px;
+  background: var(--panel);
 }
 
 .ip-list-container h2 {
-  margin: 20px 0 15px 0;
-  color: var(--hacker-highlight);
+  margin: 16px 0 12px 0;
+  color: var(--text-faint);
   text-transform: uppercase;
-  letter-spacing: 1px;
-  font-size: 1.1em;
-  border-bottom: 1px solid var(--hacker-accent);
+  letter-spacing: 1.2px;
+  font-size: 11px;
+  font-weight: 600;
+  border-bottom: 1px solid var(--border);
   padding-bottom: 8px;
 }
 
-/* IP Card - Data Entry */
+/* IP card */
 .ip-card {
-  background: rgba(13, 2, 8, 0.7);
-  margin-bottom: 15px;
-  padding: 15px;
-  border-left: 3px solid var(--hacker-green);
-  transition: all 0.3s ease;
+  background: var(--panel-2);
+  margin-bottom: 8px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-left: 2px solid var(--accent-dim);
+  border-radius: 4px;
+  transition: background 0.15s ease, border-color 0.15s ease;
 }
 
 .ip-card:hover {
-  background: rgba(13, 2, 8, 0.9);
-  border-left-color: var(--hacker-highlight);
-  transform: translateX(5px);
+  background: var(--panel-3);
+  border-color: var(--border-strong);
 }
 
 .ip-card h3 {
-  color: var(--hacker-highlight);
-  margin: 0 0 10px 0;
-  font-size: 1em;
-  font-weight: bold;
+  color: var(--text);
+  margin: 0 0 12px 0;
+  font-size: 13px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
-/* Selected states */
 .ip-card.selected {
-  background: rgba(0, 255, 65, 0.1);
-  border-left: 3px solid var(--hacker-highlight);
+  background: var(--accent-soft);
+  border-color: var(--accent-dim);
+  border-left-color: var(--accent);
 }
 
-.ip-card.selected h3 {
-  color: var(--hacker-highlight);
-  text-shadow: 0 0 5px var(--hacker-green);
-}
-
-/* Globe Marker Styles */
-.globe-marker {
-  background-color: var(--hacker-green);
-  box-shadow: 0 0 10px var(--hacker-green);
-  transition: all 0.3s ease;
-}
-
-.globe-marker.selected {
-  background-color: var(--hacker-highlight);
-  box-shadow: 0 0 20px var(--hacker-highlight);
-  transform: scale(1.5);
-}
-
-.globe-connection {
-  stroke: var(--hacker-green);
-  stroke-opacity: 0.6;
-  stroke-width: 1px;
-  transition: all 0.3s ease;
-}
-
-.globe-connection.selected {
-  stroke: var(--hacker-highlight);
-  stroke-opacity: 0.9;
-  stroke-width: 2px;
-}
-
-.pulse-effect {
-  position: absolute;
-  border-radius: 50%;
-  background-color: rgba(100, 255, 218, 0.3);
-  animation: pulse 2s infinite;
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 0.2; transform: scale(1); }
-  50% { opacity: 1; transform: scale(1.5); }
+/* Badges */
+.threat-badge,
+.user-badge {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
 }
 
 .location-info {
   margin-bottom: 10px;
-  font-size: 0.9em;
+  font-size: 12px;
+  color: var(--text-dim);
+  display: grid;
+  gap: 3px;
 }
 
 .map-link {
-  color: var(--hacker-green);
+  color: var(--accent);
   text-decoration: none;
-  font-size: 0.8em;
+  font-size: 12px;
   display: inline-block;
-  margin-top: 5px;
+  margin-top: 6px;
 }
 
 .map-link:hover {
-  color: var(--hacker-highlight);
   text-decoration: underline;
 }
 
-.protocols {
-  font-size: 0.85em;
-  margin-top: 10px;
-  color: var(--hacker-text);
+.security-flags {
+  margin: 10px 0;
+  padding: 8px 10px;
+  background: var(--danger-soft);
+  border-left: 2px solid var(--danger);
+  border-radius: 3px;
+  font-size: 12px;
+  color: var(--text-dim);
 }
 
-/* Progress Bar - Cyber Style */
+.security-flags strong {
+  color: var(--danger);
+}
+
+.ip-card .info-grid {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.protocols {
+  font-size: 12px;
+  margin-top: 10px;
+  color: var(--text-dim);
+}
+
+/* Progress */
 #progressContainer {
   position: absolute;
   top: 50%;
@@ -331,81 +363,81 @@ body {
   width: 80%;
   max-width: 400px;
   z-index: 100;
-  background: rgba(13, 2, 8, 0.9);
+  background: var(--panel-2);
   padding: 20px;
-  border: 1px solid var(--hacker-green);
-  box-shadow: 0 0 15px rgba(0, 255, 65, 0.3);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
 }
 
 .progress-bar {
   width: 100%;
-  height: 10px;
-  background: rgba(0, 0, 0, 0.5);
-  margin: 15px 0;
+  height: 4px;
+  background: var(--panel-3);
+  border-radius: 2px;
+  margin: 14px 0;
   overflow: hidden;
 }
 
 .progress-fill {
   height: 100%;
-  background: linear-gradient(
-    to right,
-    var(--hacker-dark),
-    var(--hacker-green)
-  );
+  background: var(--accent-dim);
   transition: width 0.3s ease;
   width: 0%;
 }
 
 .loading {
   text-align: center;
-  color: var(--hacker-green);
-  font-size: 0.9em;
-  text-transform: uppercase;
-  letter-spacing: 1px;
+  color: var(--text-dim);
+  font-size: 12px;
+  letter-spacing: 0.5px;
 }
 
-/* Status Messages */
+/* Errors */
 .error {
-  background: rgba(139, 0, 0, 0.3);
-  color: #ff5252;
-  padding: 15px;
-  border-left: 3px solid #ff5252;
+  background: var(--danger-soft);
+  color: var(--danger);
+  padding: 12px 14px;
+  border-left: 2px solid var(--danger);
+  border-radius: 3px;
   margin: 10px 0;
-  font-size: 0.9em;
+  font-size: 12px;
 }
 
-/* Texture Loading Status */
+/* Texture status */
 #textureStatus {
   display: none;
   position: fixed;
-  bottom: 20px;
-  right: 20px;
-  background: rgba(13, 2, 8, 0.9);
-  color: var(--hacker-green);
-  padding: 10px 15px;
-  border: 1px solid var(--hacker-green);
-  font-size: 0.8em;
+  bottom: 16px;
+  right: 16px;
+  background: var(--panel-2);
+  color: var(--text-dim);
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 12px;
   z-index: 1000;
 }
 
-/* Terminal-like Scrollbar */
+/* Scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
+  width: 10px;
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--hacker-dark);
+  background: var(--panel);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--hacker-accent);
+  background: var(--border-strong);
+  border-radius: 5px;
+  border: 2px solid var(--panel);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--hacker-green);
+  background: var(--text-faint);
 }
 
-/* FaultyTerminal styles */
+/* FaultyTerminal background */
 .faulty-terminal-container {
   width: 100%;
   height: 100%;
@@ -426,33 +458,24 @@ body {
 
 #coordinateDisplay {
   position: absolute;
-  top: 10px;
-  left: 10px;
-  color: #00ff41;
-  font-family: 'Courier New', monospace;
-  font-size: 14px;
-  background: rgba(0, 0, 0, 0.7);
+  top: 12px;
+  left: 12px;
+  color: var(--text-dim);
+  font-family: var(--mono);
+  font-size: 12px;
+  background: rgba(10, 12, 11, 0.85);
   padding: 5px 10px;
-  border: 1px solid #00ff41;
+  border: 1px solid var(--border);
+  border-radius: 4px;
   z-index: 1000;
   pointer-events: none;
 }
 
 /* User IP highlight */
 .ip-card.user-ip {
-  background: rgba(100, 255, 218, 0.05);
-  border-left: 3px solid #64ffda;
+  border-left-color: var(--info);
 }
 
 .ip-card.user-ip:hover {
-  background: rgba(100, 255, 218, 0.1);
-}
-
-.user-badge {
-  background: #64ffda;
-  color: #000;
-  padding: 2px 8px;
-  border-radius: 3px;
-  font-size: 0.7em;
-  margin-left: 10px;
+  background: var(--panel-3);
 }

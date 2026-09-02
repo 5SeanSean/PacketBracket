@@ -23,19 +23,39 @@ class PcapngParser {
 
   async parse(arrayBuffer) {
     const dataView = new DataView(arrayBuffer)
-    let offset = 0
     const totalSize = dataView.byteLength
 
     window.PB_DEBUG && console.log("Starting parse of", totalSize, "bytes")
 
+    if (totalSize < 4) {
+      throw new Error("File too small to be a valid capture file")
+    }
+
+    // Detect capture format from the file's magic number and dispatch.
+    const magicBE = dataView.getUint32(0, false)
+    if (magicBE === 0x0a0d0d0a) {
+      // PCAP-NG (Section Header Block)
+      return await this.parsePcapng(dataView)
+    }
+    if (
+      magicBE === 0xa1b2c3d4 || // classic pcap, microsecond, big-endian
+      magicBE === 0xd4c3b2a1 || // classic pcap, microsecond, little-endian
+      magicBE === 0xa1b23c4d || // classic pcap, nanosecond, big-endian
+      magicBE === 0x4d3cb2a1    // classic pcap, nanosecond, little-endian
+    ) {
+      return await this.parseClassicPcap(dataView, magicBE)
+    }
+
+    throw new Error("Unrecognized capture format - not a PCAP-NG or classic PCAP file")
+  }
+
+  async parsePcapng(dataView) {
+    let offset = 0
+    const totalSize = dataView.byteLength
+
     try {
       if (totalSize < 12) {
         throw new Error("File too small to be a valid PCAP-NG file")
-      }
-
-      const magic = dataView.getUint32(0, true)
-      if (magic !== 0x0a0d0d0a) {
-        throw new Error("Invalid PCAP-NG file - missing magic number")
       }
 
       let blockCount = 0
@@ -73,6 +93,109 @@ class PcapngParser {
     } catch (error) {
       console.error("Parsing error:", error)
       throw new Error(`Parse error at offset ${offset}: ${error.message}`)
+    }
+
+    return {
+      blocks: this.blocks,
+      interfaces: this.interfaces,
+      packets: this.packets,
+      ipCache: this.ipCache,
+      ipPackets: this.ipPackets,
+      summary: this.generateSummary(),
+    }
+  }
+
+  // Classic libpcap format (.pcap/.cap/.dmp): 24-byte global header followed
+  // by 16-byte-prefixed packet records. Endianness comes from the magic number.
+  async parseClassicPcap(view, magicBE) {
+    const totalSize = view.byteLength
+    const little = magicBE === 0xd4c3b2a1 || magicBE === 0x4d3cb2a1
+    const nano = magicBE === 0xa1b23c4d || magicBE === 0x4d3cb2a1
+
+    try {
+      if (totalSize < 24) {
+        throw new Error("File too small to be a valid PCAP file")
+      }
+
+      const majorVersion = view.getUint16(4, little)
+      const minorVersion = view.getUint16(6, little)
+      const linkType = view.getUint32(20, little)
+
+      // Synthesize a section header + interface block so summaries/UI line up
+      // with the PCAP-NG code path.
+      this.blocks.push({
+        offset: 0,
+        totalLength: 24,
+        type: "Section Header Block",
+        byteOrder: little ? "Little Endian" : "Big Endian",
+        majorVersion,
+        minorVersion,
+      })
+      const iface = {
+        offset: 0,
+        totalLength: 24,
+        type: "Interface Description Block",
+        linkType,
+        linkTypeName: this.getLinkTypeName(linkType),
+      }
+      this.blocks.push(iface)
+      this.interfaces.push(iface)
+
+      let offset = 24
+      let blockCount = 0
+      while (offset + 16 <= totalSize) {
+        if (this.onProgress) {
+          this.onProgress(offset, totalSize, blockCount)
+        }
+
+        const tsSec = view.getUint32(offset, little)
+        const tsSub = view.getUint32(offset + 4, little)
+        const inclLen = view.getUint32(offset + 8, little)
+
+        if (inclLen > 1000000 || offset + 16 + inclLen > totalSize) {
+          // Truncated or corrupt record - stop gracefully.
+          break
+        }
+
+        const ms = tsSec * 1000 + (nano ? tsSub / 1e6 : tsSub / 1e3)
+        const block = {
+          offset,
+          totalLength: 16 + inclLen,
+          type: "Enhanced Packet Block",
+          capturedLength: inclLen,
+          timestamp: new Date(ms),
+        }
+
+        const dataOffset = offset + 16
+        // Only Ethernet link-layer (linkType 1) is decoded for IPs.
+        if (linkType === 1 && inclLen >= 14) {
+          block.ethernet = this.parseEthernet(view, dataOffset)
+          if (block.ethernet && block.ethernet.etherType === 0x0800) {
+            block.ipv4 = this.parseIPv4(view, dataOffset + 14)
+          }
+        }
+
+        this.blocks.push(block)
+        this.packets.push(block)
+        if (block.ipv4 && !block.ipv4.error) {
+          this.trackIPAddresses(block)
+        }
+
+        offset += 16 + inclLen
+        blockCount++
+
+        if (blockCount % 50 === 0) {
+          await new Promise((resolve) => setTimeout(resolve, 1))
+        }
+      }
+
+      window.PB_DEBUG && console.log("Parsed", blockCount, "classic pcap records")
+      window.PB_DEBUG && console.log("Found", this.uniqueIPs.size, "unique IP addresses")
+
+      await this.fetchIntelligenceForIPs()
+    } catch (error) {
+      console.error("Parsing error:", error)
+      throw new Error(`Parse error: ${error.message}`)
     }
 
     return {
@@ -214,7 +337,7 @@ class PcapngParser {
         data = await window.electronAPI.geoLookup(ip)
       } else {
         const url = `${this.geoApiEndpoint}?api_key=${this.geoApiKey}&ip_address=${ip}`
-        const response = await fetch(url)
+        const response = await fetch(url, { cache: "no-store" })
         data = response.ok
           ? await response.json()
           : { error: `API Error: ${response.status}` }
@@ -239,6 +362,8 @@ class PcapngParser {
       // Calculate threat level based on security flags
       const threatLevel = this.calculateThreatLevel(data.security)
 
+      window.PB_DEBUG && console.log(`[geo] ${ip}: ${data.location?.city}, ${data.location?.country} (${data.company?.name})`)
+
       return {
         // Location data
         country: data.location?.country || "Unknown",
@@ -258,7 +383,7 @@ class PcapngParser {
 
         // Additional data
         timezone: data.timezone?.name || "Unknown",
-        flag: data.flag?.emoji || "🏳️",
+        flag: "",
 
         mapUrl:
           data.location?.latitude && data.location?.longitude

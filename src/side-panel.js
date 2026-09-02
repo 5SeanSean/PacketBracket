@@ -9,7 +9,7 @@ function initSidePanel() {
   sidePanel.innerHTML = `
     <div class="upload-area-container">
         <div class="upload-area" id="uploadArea">
-            <p style="font-size: 18px; margin-bottom: 20px;">Drop your PCAP-NG file here or click to select</p>
+            <p style="font-size: 18px; margin-bottom: 20px;">Drop your PCAP-NG or PCAP file here or click to select</p>
             <button class="upload-btn" onclick="document.getElementById('fileInput').click()">
                 Choose File
             </button>
@@ -102,17 +102,15 @@ window.displayIPDetails = (ipData, ipPackets, file, summary) => {
     ipCard.style.borderLeftColor = threatLevel.color;
 
     // Add user badge if it's the user's IP
-    const userBadge = isUserIP ? 
-      '<span class="user-badge" style="background: #64ffda; color: #000; padding: 2px 8px; border-radius: 3px; font-size: 0.7em; margin-left: 10px;">👤 You</span>' : 
-      '';
-
+    const userBadge = isUserIP
+      ? '<span class="user-badge" style="background: var(--info); color: #000;">You</span>'
+      : '';
 
     ipCard.innerHTML = `
-            <h3 style="color: ${threatLevel.color}">
-                ${ipInfo.flag || "🏳️"} ${ipInfo.ip}
-                <span class="threat-badge" style="background: ${threatLevel.color}; color: #000; padding: 2px 8px; border-radius: 3px; font-size: 0.7em; margin-left: 10px;">
-                    ${threatLevel.name}
-                </span>
+            <h3>
+                <span>${ipInfo.ip}</span>
+                <span class="threat-badge" style="background: ${threatLevel.color}; color: #000;">${threatLevel.name}</span>
+                ${userBadge}
             </h3>
             <div class="location-info">
                 <div><strong>Coordinates:</strong> ${ipInfo.latitude.toFixed(4)}°, ${ipInfo.longitude.toFixed(4)}°</div>
