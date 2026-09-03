@@ -59,6 +59,7 @@ function createWindow() {
     minHeight: 600,
     backgroundColor: '#0a0a0a',
     title: 'PacketBracket',
+    icon: path.join(__dirname, 'icon.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
