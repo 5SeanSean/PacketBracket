@@ -4,6 +4,17 @@
   let userMarker = null
   let selectedMarker = null
   let mapDiv = null
+  let userLocationEstimated = false
+  let userLatLng = null
+
+  // Ray length metric, shared with the 3D view via window.PB_HEIGHT_METRIC.
+  function pbMetricCount(packets) {
+    if (!packets) return 0
+    const m = window.PB_HEIGHT_METRIC || "total"
+    const inc = packets.incoming.length
+    const out = packets.outgoing.length
+    return m === "incoming" ? inc : m === "outgoing" ? out : inc + out
+  }
 
   // Esri Dark Gray Canvas — free, no API key, no watermark, dark theme
   const TILE_URL = "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}"
@@ -22,7 +33,7 @@
       zoom: 2,
       minZoom: 2,
       maxZoom: 16,
-      zoomControl: true,
+      zoomControl: false,
       attributionControl: false,
       maxBounds: [[-85, -180], [85, 180]],
       maxBoundsViscosity: 1.0,
@@ -64,8 +75,7 @@
     let minCount = Number.POSITIVE_INFINITY
     let maxCount = 0
     validIPs.forEach(ip => {
-      const p = ipPackets.get(ip.ip)
-      const c = p ? p.incoming.length + p.outgoing.length : 0
+      const c = pbMetricCount(ipPackets.get(ip.ip))
       if (c < minCount) minCount = c
       if (c > maxCount) maxCount = c
     })
@@ -87,12 +97,13 @@
 
     validIPs.forEach(ip => {
       const packets = ipPackets.get(ip.ip)
-      const count = packets ? packets.incoming.length + packets.outgoing.length : 0
+      const count = pbMetricCount(packets)
       const color = ip.threatLevel?.color || "#3fb950"
 
-      // Traffic "ray" extending outward along the origin->IP direction, length
-      // proportional to total packets — the 2D analog of the 3D height bars.
-      drawTrafficRay(origin, ip.latitude, ip.longitude, count, minCount, maxCount, color)
+      // One projected line: dashed from the origin to the IP, then solid from
+      // that exact point onward. Sharing the projected direction keeps both
+      // portions perfectly collinear on the Mercator map.
+      drawTrafficLine(origin, ip.latitude, ip.longitude, count, minCount, maxCount, color)
 
       const icon = L.divIcon({
         className: "",
@@ -109,13 +120,13 @@
       const marker = L.marker([ip.latitude, ip.longitude], { icon })
 
       const tooltipHtml = `
-        <div style="background:#141815;color:#d6dad7;padding:9px 11px;border:1px solid #333c36;border-radius:4px;font-family:'SF Mono','JetBrains Mono',Menlo,Consolas,monospace;font-size:12px;min-width:170px;">
+        <div style="background:#141815;color:#d6dad7;padding:9px 11px;border:1px solid #333c36;border-radius:0;box-shadow:inset 2px 2px 0 rgba(255,255,255,0.07),inset -2px -2px 0 rgba(0,0,0,0.55);font-family:'SF Mono','JetBrains Mono',Menlo,Consolas,monospace;font-size:12px;min-width:170px;">
           <div style="color:#d6dad7;font-weight:600;margin-bottom:5px;">${ip.ip}</div>
           <div style="color:#8b948d;">${ip.city || "Unknown"}, ${ip.country || "Unknown"}</div>
           <div style="color:#8b948d;margin-top:3px;">Packets: ${count}</div>
           ${ip.isp ? `<div style="color:#8b948d;">ISP: ${ip.isp}</div>` : ""}
           <div style="margin-top:6px;">
-            <span style="background:${color};color:#000;padding:1px 6px;border-radius:2px;font-size:10px;font-weight:600;letter-spacing:0.5px;text-transform:uppercase;">
+            <span style="background:${color};color:#000;padding:1px 6px;border-radius:0;font-size:10px;font-weight:600;letter-spacing:0.5px;text-transform:uppercase;">
               ${ip.threatLevel?.name || "Safe"}
             </span>
           </div>
@@ -135,11 +146,6 @@
       marker._ipData = ip
       ipLayerGroup.addLayer(marker)
 
-      // Draw arc from user location to this IP
-      if (userMarker) {
-        const userLatLng = userMarker.getLatLng()
-        drawArc(userLatLng, [ip.latitude, ip.longitude], color)
-      }
     })
 
     // Re-add user marker on top
@@ -149,68 +155,46 @@
     }
   }
 
-  // Draw a traffic "ray" from an IP location, pointing away from `origin`
-  // (the user's location). Length scales with total packet count between the
-  // global min/max, mirroring the proportional height of the 3D globe's bars.
-  function drawTrafficRay(origin, lat, lon, count, minCount, maxCount, color) {
-    const MIN_LEN = 3   // degrees at lowest traffic
-    const MAX_LEN = 22  // degrees at highest traffic
+  // Draw one visual connection whose style switches at the IP marker. Geometry
+  // is calculated in Web Mercator pixels, not latitude/longitude degrees.
+  function drawTrafficLine(origin, lat, lon, count, minCount, maxCount, color) {
+    const PROJECTION_ZOOM = 0
+    const MIN_TAIL_LENGTH = 2.2
+    const MAX_TAIL_LENGTH = 15.6
+    const originLatLng = L.latLng(origin[0], origin[1])
+    const targetLatLng = L.latLng(lat, lon)
+    const originPoint = map.project(originLatLng, PROJECTION_ZOOM)
+    const targetPoint = map.project(targetLatLng, PROJECTION_ZOOM)
+
+    let direction = targetPoint.subtract(originPoint)
+    const magnitude = Math.hypot(direction.x, direction.y)
+    if (magnitude < 1e-6) direction = L.point(0, -1)
+    else direction = direction.divideBy(magnitude)
 
     const range = maxCount - minCount
     const normalized = range > 0 ? (count - minCount) / range : 0
-    const len = MIN_LEN + (MAX_LEN - MIN_LEN) * normalized
+    const tailLength = MIN_TAIL_LENGTH + (MAX_TAIL_LENGTH - MIN_TAIL_LENGTH) * normalized
+    const endPoint = targetPoint.add(direction.multiplyBy(tailLength))
+    const endLatLng = map.unproject(endPoint, PROJECTION_ZOOM)
 
-    // Unit direction origin -> IP (fall back to pointing north if coincident).
-    let dLat = lat - origin[0]
-    let dLon = lon - origin[1]
-    const mag = Math.hypot(dLat, dLon)
-    if (mag < 1e-6) {
-      dLat = 1
-      dLon = 0
-    } else {
-      dLat /= mag
-      dLon /= mag
-    }
-
-    let endLat = lat + dLat * len
-    let endLon = lon + dLon * len
-    // Clamp latitude to the map's bounds; keep longitude sane.
-    endLat = Math.max(-84, Math.min(84, endLat))
-    endLon = Math.max(-179, Math.min(179, endLon))
-
-    const core = L.polyline([[lat, lon], [endLat, endLon]], {
-      color: color,
+    const connection = L.polyline([originLatLng, targetLatLng], {
+      color,
+      weight: 1,
+      opacity: 0.4,
+      dashArray: "4 4",
+      lineCap: "butt",
+      interactive: false,
+    })
+    const tail = L.polyline([targetLatLng, endLatLng], {
+      color,
       weight: 2,
       opacity: 0.8,
       lineCap: "round",
       interactive: false,
     })
-    ipLayerGroup.addLayer(core)
-  }
 
-  // Draw a curved arc between two points using a geodesic approximation
-  function drawArc(from, to, color) {
-    const lat1 = from.lat !== undefined ? from.lat : from[0]
-    const lon1 = from.lng !== undefined ? from.lng : from[1]
-    const lat2 = to[0], lon2 = to[1]
-
-    const points = []
-    const steps = 40
-    for (let i = 0; i <= steps; i++) {
-      const t = i / steps
-      // Interpolate with a parabolic lift
-      const lat = lat1 + (lat2 - lat1) * t
-      const lon = lon1 + (lon2 - lon1) * t
-      points.push([lat, lon])
-    }
-
-    const arc = L.polyline(points, {
-      color: color,
-      weight: 1,
-      opacity: 0.4,
-      dashArray: "4 4",
-    })
-    ipLayerGroup.addLayer(arc)
+    ipLayerGroup.addLayer(connection)
+    ipLayerGroup.addLayer(tail)
   }
 
   function selectMarker(marker, ip) {
@@ -256,8 +240,14 @@
     if (mapDiv) mapDiv.style.display = "none"
   }
 
-  function set2DUserLocation(lat, lon) {
+  function set2DUserLocation(lat, lon, source = "gps") {
     if (!map) return
+    userLocationEstimated = source !== "gps"
+    userLatLng = [lat, lon]
+
+    // Publish so the side panel renders its always-present "Your Location" item.
+    window.PB_USER_LOCATION = { lat, lon, estimated: userLocationEstimated }
+    if (window.renderUserLocationCard) window.renderUserLocationCard()
 
     if (userMarker) userMarker.remove()
 
@@ -272,13 +262,17 @@
       iconAnchor: [6.5, 6.5],
     })
 
+    const label = userLocationEstimated ? "Your Estimated Location" : "Your Location"
     userMarker = L.marker([lat, lon], { icon, zIndexOffset: 1000 })
-      .bindTooltip('<div style="background:#141815;color:#d6dad7;padding:7px 11px;border:1px solid #333c36;border-radius:4px;font-family:\'SF Mono\',\'JetBrains Mono\',Menlo,Consolas,monospace;font-size:12px;">Your Location</div>', {
+      .bindTooltip('<div style="background:#141815;color:#d6dad7;padding:7px 11px;border:1px solid #333c36;border-radius:0;box-shadow:inset 2px 2px 0 rgba(255,255,255,0.07),inset -2px -2px 0 rgba(0,0,0,0.55);font-family:\'SF Mono\',\'JetBrains Mono\',Menlo,Consolas,monospace;font-size:12px;">' + label + '</div>', {
         permanent: false,
         opacity: 1,
         className: "leaflet-packetbracket-tooltip",
       })
       .addTo(map)
+    userMarker.on("click", () => {
+      if (window.highlightUserLocationInSidePanel) window.highlightUserLocationInSidePanel()
+    })
 
     map.setView([lat, lon], 4, { animate: true })
 
@@ -325,6 +319,12 @@
     selectedMarker = null
   }
 
+  function panTo2D(lat, lon) {
+    if (!map || lat == null || lon == null || isNaN(lat) || isNaN(lon)) return
+    map.setView([lat, lon], Math.max(map.getZoom(), 4), { animate: true })
+  }
+
+  window.panTo2D = panTo2D
   window.initEmpty2DGlobe = initEmpty2DGlobe
   window.populate2DGlobe = populate2DGlobe
   window.clear2DGlobeData = clear2DGlobeData
@@ -333,4 +333,9 @@
   window.cleanup2DGlobe = cleanup2DGlobe
   window.set2DUserLocation = set2DUserLocation
   window.selectIPOn2DGlobe = selectIPOn2DGlobe
+  window.selectUserOn2DGlobe = () => {
+    if (!userLatLng) return
+    panTo2D(userLatLng[0], userLatLng[1])
+    if (userMarker) userMarker.openTooltip()
+  }
 })()

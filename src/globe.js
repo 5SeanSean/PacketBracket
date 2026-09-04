@@ -14,7 +14,28 @@ let ipMarkers = []
 let animationId
 let userLocation = null
 let userLocationLocked = false // true once set by real geolocation
+let userLocationSource = null // "gps" (precise) | "ip" | "centroid" (estimated)
 let userMarker = null
+
+// Publish the current user location so the side panel can render its list item.
+function publishUserLocation() {
+  if (!userLocation) return
+  window.PB_USER_LOCATION = {
+    lat: userLocation.latitude,
+    lon: userLocation.longitude,
+    estimated: userLocationSource !== "gps",
+  }
+  if (window.renderUserLocationCard) window.renderUserLocationCard()
+}
+
+// Marker height / ray length metric, shared with the 2D view via window.
+function pbMetricCount(packets) {
+  if (!packets) return 0
+  const m = window.PB_HEIGHT_METRIC || "total"
+  const inc = packets.incoming.length
+  const out = packets.outgoing.length
+  return m === "incoming" ? inc : m === "outgoing" ? out : inc + out
+}
 let connectionArcs = []
 const currentLocations = []
 let textureLoader
@@ -202,7 +223,8 @@ function populateGlobe(ipData, ipPackets) {
   })
 
   if (validIPs.length === 0) {
-    showStatus("No valid geolocation data available", "error")
+    // Empty is normal mid-replay (e.g. "Replay starting" shows 0 packets) and
+    // when a bucket has no geolocatable IPs — globe is already cleared above.
     return
   }
 
@@ -232,12 +254,9 @@ function populateGlobe(ipData, ipPackets) {
     const packets = ipPackets.get(ip.ip)
     if (!packets) return
 
-    const incoming = packets.incoming.length
-    const outgoing = packets.outgoing.length
-    const total = incoming + outgoing
-
-    if (total < minContacts) minContacts = total
-    if (total > maxContacts) maxContacts = total
+    const value = pbMetricCount(packets)
+    if (value < minContacts) minContacts = value
+    if (value > maxContacts) maxContacts = value
   })
 
   // If all values are equal, adjust to avoid division by zero
@@ -250,19 +269,17 @@ function populateGlobe(ipData, ipPackets) {
     const centerLat = validIPs.reduce((sum, ip) => sum + ip.latitude, 0) / validIPs.length
     const centerLon = validIPs.reduce((sum, ip) => sum + ip.longitude, 0) / validIPs.length
     userLocation = { latitude: centerLat, longitude: centerLon }
+    userLocationSource = "centroid" // approximated → labeled "estimated"
   }
+  publishUserLocation()
 
   // Add IP markers and connections
   validIPs.forEach((ip) => {
     const packets = ipPackets.get(ip.ip)
     if (!packets) return
 
-    const incoming = packets.incoming.length
-    const outgoing = packets.outgoing.length
-    const total = incoming + outgoing
-
     const position = latLonToVector3(ip.latitude, ip.longitude, 1.01)
-    const marker = createIPMarker(position, ip.ip, total, minContacts, maxContacts)
+    const marker = createIPMarker(position, ip.ip, pbMetricCount(packets), minContacts, maxContacts)
     globeGroup.add(marker)
 
     const userPosition = latLonToVector3(userLocation.latitude, userLocation.longitude, 1.01)
@@ -469,8 +486,12 @@ function selectMarker(marker, ip) {
   });
 
   // Sync side panel and 2D map (don't call selectIPOnGlobe — we're already in it)
-  if (window.highlightIPInSidePanel) window.highlightIPInSidePanel(ip)
-  if (window.selectIPOn2DGlobe) window.selectIPOn2DGlobe(ip)
+  if (marker.userData.isUser) {
+    if (window.highlightUserLocationInSidePanel) window.highlightUserLocationInSidePanel()
+  } else {
+    if (window.highlightIPInSidePanel) window.highlightIPInSidePanel(ip)
+    if (window.selectIPOn2DGlobe) window.selectIPOn2DGlobe(ip)
+  }
 
   const lat = marker.userData.originalLat;
   const lon = marker.userData.originalLon;
@@ -564,38 +585,37 @@ function createUpdateRotation() {
 
 // Create user marker (center point)
 function createUserMarker(position) {
-  // Smaller user marker (reduced from 0.03 to 0.02)
-  const geometry = new THREE.SphereGeometry(0.02, 16, 16)
-  const material = new THREE.MeshPhongMaterial({
-    color: 0x64ffda,
-    emissive: 0x1a5a4c,
-    emissiveIntensity: 0.5,
-    specular: 0x111111,
-    shininess: 30,
-  })
-  const marker = new THREE.Mesh(geometry, material)
-  marker.position.copy(position)
+  // Your location is a cylinder like the IP markers, but with a fixed default
+  // height (it has no incoming/outgoing traffic of its own to scale by).
+  const height = 0.1
+  const userColor = 0x64ffda
+  const geometry = new THREE.CylinderGeometry(0.005, 0.005, height, 10)
+  geometry.translate(0, height / 2, 0)
 
-  // Add pulse effect (smaller than before)
-  const pulseGeometry = new THREE.SphereGeometry(0.03, 16, 16)
-  const pulseMaterial = new THREE.MeshBasicMaterial({
-    color: 0x64ffda,
-    transparent: true,
-    opacity: 0.3,
-    side: THREE.BackSide,
-  })
-  const pulse = new THREE.Mesh(pulseGeometry, pulseMaterial)
-  marker.add(pulse)
+  const marker = new THREE.Mesh(
+    geometry,
+    new THREE.MeshPhongMaterial({
+      color: userColor,
+      emissive: userColor,
+      emissiveIntensity: 0.35,
+      specular: 0xffffff,
+      shininess: 50,
+    }),
+  )
 
-  // Animation for pulse effect
-  function animatePulse() {
-    pulse.scale.x = 1 + 0.5 * Math.sin(Date.now() * 0.002)
-    pulse.scale.y = 1 + 0.5 * Math.sin(Date.now() * 0.002)
-    pulse.scale.z = 1 + 0.5 * Math.sin(Date.now() * 0.002)
-    requestAnimationFrame(animatePulse)
+  const surfaceNormal = position.clone().normalize()
+  marker.position.copy(surfaceNormal.clone().multiplyScalar(0.99))
+  marker.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), surfaceNormal)
+
+  marker.userData = {
+    isUser: true,
+    targetScale: new THREE.Vector3(1, 1, 1),
+    defaultColor: userColor,
+    originalHeight: height,
+    originalLat: userLocation?.latitude || 0,
+    originalLon: userLocation?.longitude || 0,
   }
-  animatePulse()
-
+  marker.onClick = () => selectMarker(marker, null)
   return marker
 }
 
@@ -714,12 +734,13 @@ function addMouseControls() {
     // Update the raycaster
     raycaster.setFromCamera(mouse, camera)
 
-    // Check for intersections with markers
-    const intersects = raycaster.intersectObjects(ipMarkers)
+    // Check for intersections with markers (user location marker is clickable too)
+    const clickable = userMarker ? [...ipMarkers, userMarker] : ipMarkers
+    const intersects = raycaster.intersectObjects(clickable)
 
     if (intersects.length > 0) {
       const marker = intersects[0].object
-      marker.onClick()
+      if (marker.onClick) marker.onClick()
     }
   })
 
@@ -768,6 +789,9 @@ function animate() {
       marker.scale.lerp(marker.userData.targetScale, 0.1);
     }
   });
+  if (userMarker && userMarker.userData && userMarker.userData.targetScale) {
+    userMarker.scale.lerp(userMarker.userData.targetScale, 0.1);
+  }
 
   // Handle connection line width changes
   connectionArcs.forEach((arc) => {
@@ -904,9 +928,11 @@ window.selectIPOnGlobe = (ip) => {
 }
 
 // Place (or update) the user marker without any IP data
-function setUserLocation(lat, lon) {
+function setUserLocation(lat, lon, source = "gps") {
   userLocation = { latitude: lat, longitude: lon }
   userLocationLocked = true
+  userLocationSource = source
+  publishUserLocation()
 
   if (!globeGroup) return // globe not ready yet
 
@@ -922,6 +948,15 @@ function setUserLocation(lat, lon) {
   globeGroup.add(userMarker)
 }
 
+// Rotate the globe so lat/lon faces front (same math selectMarker uses to
+// bring a picked IP forward), without changing the current selection.
+function panToLatLon3D(lat, lon) {
+  if (lat == null || lon == null || isNaN(lat) || isNaN(lon)) return
+  targetRotationY = -(lon * Math.PI) / 180 + (LONG_OFFSET * Math.PI) / 180
+  targetRotationX = (lat * Math.PI) / 180 - (LAT_OFFSET * Math.PI) / 180
+}
+window.panToLatLon3D = panToLatLon3D
+
 // Export functions
 window.initEmptyGlobe = initEmptyGlobe
 window.populateGlobe = populateGlobe
@@ -930,3 +965,4 @@ window.showGlobe = showGlobe
 window.hideGlobe = hideGlobe
 window.cleanupGlobe = cleanupGlobe
 window.setUserLocation = setUserLocation
+window.selectUserOnGlobe = () => { if (userMarker) selectMarker(userMarker, null) }

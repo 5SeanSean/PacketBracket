@@ -163,10 +163,12 @@ class PcapngParser {
           totalLength: 16 + inclLen,
           type: "Enhanced Packet Block",
           capturedLength: inclLen,
+          originalLength: view.getUint32(offset + 12, little),
           timestamp: new Date(ms),
         }
 
         const dataOffset = offset + 16
+        block.rawData = this.extractRawData(view, dataOffset, inclLen)
         // Only Ethernet link-layer (linkType 1) is decoded for IPs.
         if (linkType === 1 && inclLen >= 14) {
           block.ethernet = this.parseEthernet(view, dataOffset)
@@ -561,6 +563,7 @@ class PcapngParser {
 
     const timestamp = (BigInt(block.timestampHigh) << 32n) | BigInt(block.timestampLow)
     block.timestamp = new Date(Number(timestamp / 1000n))
+    block.rawData = this.extractRawData(view, offset + 28, block.capturedLength)
 
     if (block.capturedLength >= 14) {
       block.ethernet = this.parseEthernet(view, offset + 28)
@@ -573,6 +576,8 @@ class PcapngParser {
 
   parseSimplePacket(view, offset, block) {
     block.originalLength = view.getUint32(offset + 8, true)
+    block.capturedLength = Math.min(block.originalLength, Math.max(0, block.totalLength - 16))
+    block.rawData = this.extractRawData(view, offset + 12, block.capturedLength)
 
     if (block.originalLength >= 14) {
       block.ethernet = this.parseEthernet(view, offset + 12)
@@ -587,6 +592,8 @@ class PcapngParser {
     try {
       const etherType = view.getUint16(offset + 12, false)
       return {
+        destinationMAC: this.formatMAC(view, offset),
+        sourceMAC: this.formatMAC(view, offset + 6),
         etherType: etherType,
         etherTypeName: this.getEtherTypeName(etherType),
       }
@@ -603,9 +610,13 @@ class PcapngParser {
 
       const versionAndIHL = view.getUint8(offset)
       const version = (versionAndIHL >> 4) & 0xf
+      const headerLength = (versionAndIHL & 0xf) * 4
 
       if (version !== 4) {
         return { error: `Invalid IP version: ${version}` }
+      }
+      if (headerLength < 20 || offset + headerLength > view.byteLength) {
+        return { error: "Invalid IPv4 header length" }
       }
 
       const protocol = view.getUint8(offset + 9)
@@ -624,16 +635,88 @@ class PcapngParser {
         view.getUint8(offset + 19),
       ].join(".")
 
-      return {
+      const ipv4 = {
         version: version,
+        headerLength,
+        differentiatedServices: view.getUint8(offset + 1),
+        totalLength: view.getUint16(offset + 2, false),
+        identification: view.getUint16(offset + 4, false),
+        flagsAndFragmentOffset: view.getUint16(offset + 6, false),
+        ttl: view.getUint8(offset + 8),
         protocol: protocol,
         protocolName: this.getProtocolName(protocol),
+        headerChecksum: view.getUint16(offset + 10, false),
         sourceIP: srcIP,
         destinationIP: dstIP,
       }
+
+      const transportOffset = offset + headerLength
+      if (protocol === 6) ipv4.tcp = this.parseTCP(view, transportOffset)
+      if (protocol === 17) ipv4.udp = this.parseUDP(view, transportOffset)
+      if (protocol === 1) ipv4.icmp = this.parseICMP(view, transportOffset)
+      return ipv4
     } catch (error) {
       return { error: "Failed to parse IPv4 header: " + error.message }
     }
+  }
+
+  parseTCP(view, offset) {
+    try {
+      if (offset + 20 > view.byteLength) return { error: "Not enough data for TCP header" }
+      const flagsByte = view.getUint8(offset + 13)
+      const flagNames = [
+        [0x80, "CWR"], [0x40, "ECE"], [0x20, "URG"], [0x10, "ACK"],
+        [0x08, "PSH"], [0x04, "RST"], [0x02, "SYN"], [0x01, "FIN"],
+      ]
+      return {
+        sourcePort: view.getUint16(offset, false),
+        destinationPort: view.getUint16(offset + 2, false),
+        sequenceNumber: view.getUint32(offset + 4, false),
+        acknowledgmentNumber: view.getUint32(offset + 8, false),
+        headerLength: ((view.getUint8(offset + 12) >> 4) & 0xf) * 4,
+        flags: flagNames.filter(([mask]) => flagsByte & mask).map(([, name]) => name),
+        windowSize: view.getUint16(offset + 14, false),
+        checksum: view.getUint16(offset + 16, false),
+        urgentPointer: view.getUint16(offset + 18, false),
+      }
+    } catch (error) {
+      return { error: "Failed to parse TCP header" }
+    }
+  }
+
+  parseUDP(view, offset) {
+    try {
+      if (offset + 8 > view.byteLength) return { error: "Not enough data for UDP header" }
+      return {
+        sourcePort: view.getUint16(offset, false),
+        destinationPort: view.getUint16(offset + 2, false),
+        length: view.getUint16(offset + 4, false),
+        checksum: view.getUint16(offset + 6, false),
+      }
+    } catch (error) {
+      return { error: "Failed to parse UDP header" }
+    }
+  }
+
+  parseICMP(view, offset) {
+    try {
+      if (offset + 4 > view.byteLength) return { error: "Not enough data for ICMP header" }
+      return {
+        type: view.getUint8(offset),
+        code: view.getUint8(offset + 1),
+        checksum: view.getUint16(offset + 2, false),
+      }
+    } catch (error) {
+      return { error: "Failed to parse ICMP header" }
+    }
+  }
+
+  formatMAC(view, offset) {
+    const octets = []
+    for (let index = 0; index < 6; index++) {
+      octets.push(view.getUint8(offset + index).toString(16).padStart(2, "0"))
+    }
+    return octets.join(":")
   }
 
   getProtocolName(protocol) {

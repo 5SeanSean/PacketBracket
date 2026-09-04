@@ -17,6 +17,17 @@ class ViewportManager {
     this.controls = document.createElement("div")
     this.controls.className = "viewport-controls"
     this.controls.innerHTML = `
+            <label class="follow-toggle" title="Keep the camera on the most recent packet">
+                <input type="checkbox" id="followLatest"> Follow
+            </label>
+            <details class="height-menu" id="heightMenu">
+                <summary class="globe-btn" title="What the marker height / ray length represents">Height ▾</summary>
+                <div class="height-menu-panel">
+                    <label><input type="checkbox" class="height-metric" value="total" checked> Total</label>
+                    <label><input type="checkbox" class="height-metric" value="incoming"> Incoming</label>
+                    <label><input type="checkbox" class="height-metric" value="outgoing"> Outgoing</label>
+                </div>
+            </details>
             <button id="globe3D" class="globe-btn active">3D Globe</button>
             <button id="globe2D" class="globe-btn">2D Map</button>
         `
@@ -27,6 +38,18 @@ class ViewportManager {
   setupEventListeners() {
     document.getElementById("globe3D").addEventListener("click", () => this.switchView("3d"))
     document.getElementById("globe2D").addEventListener("click", () => this.switchView("2d"))
+
+    // Height metric: checkboxes behave as single-select (exactly one always on).
+    window.PB_HEIGHT_METRIC = window.PB_HEIGHT_METRIC || "total"
+    const boxes = [...document.querySelectorAll(".height-metric")]
+    boxes.forEach((box) => {
+      box.addEventListener("change", () => {
+        if (!box.checked) { box.checked = true; return } // can't clear the active metric
+        boxes.forEach((b) => { if (b !== box) b.checked = false })
+        window.PB_HEIGHT_METRIC = box.value
+        this.populateCurrentView()
+      })
+    })
   }
 
   // Initialize both globes on site load
@@ -72,8 +95,8 @@ class ViewportManager {
           const lat = Number.parseFloat(geo && geo.location && geo.location.latitude)
           const lon = Number.parseFloat(geo && geo.location && geo.location.longitude)
           if (!Number.isNaN(lat) && !Number.isNaN(lon)) {
-            if (window.setUserLocation) window.setUserLocation(lat, lon)
-            if (window.set2DUserLocation) window.set2DUserLocation(lat, lon)
+            if (window.setUserLocation) window.setUserLocation(lat, lon, "ip")
+            if (window.set2DUserLocation) window.set2DUserLocation(lat, lon, "ip")
           }
         })
         .catch(() => {})
@@ -89,8 +112,8 @@ class ViewportManager {
       (pos) => {
         const lat = pos.coords.latitude
         const lon = pos.coords.longitude
-        if (window.setUserLocation) window.setUserLocation(lat, lon)
-        if (window.set2DUserLocation) window.set2DUserLocation(lat, lon)
+        if (window.setUserLocation) window.setUserLocation(lat, lon, "gps")
+        if (window.set2DUserLocation) window.set2DUserLocation(lat, lon, "gps")
       },
       (err) => {
         // Denied, timed out, or otherwise unavailable — fall back to
@@ -116,8 +139,8 @@ class ViewportManager {
         const lon = Number.parseFloat(geo && geo.location && geo.location.longitude)
         if (!Number.isNaN(lat) && !Number.isNaN(lon) && !(lat === 0 && lon === 0)) {
           console.info(`[location] IP-based location: ${geo.location.city || "?"}, ${geo.location.country || "?"} (${lat}, ${lon})`)
-          if (window.setUserLocation) window.setUserLocation(lat, lon)
-          if (window.set2DUserLocation) window.set2DUserLocation(lat, lon)
+          if (window.setUserLocation) window.setUserLocation(lat, lon, "ip")
+          if (window.set2DUserLocation) window.set2DUserLocation(lat, lon, "ip")
         } else {
           console.info("[location] IP lookup returned no usable location; using data centroid")
         }
@@ -185,6 +208,17 @@ class ViewportManager {
       window.populateGlobe(this.currentIPData, this.currentIPPackets)
     } else if (this.currentView === "2d" && window.populate2DGlobe) {
       window.populate2DGlobe(this.currentIPData, this.currentIPPackets)
+    }
+  }
+
+  // Pan the active view to lat/lon when "Follow" is checked.
+  panToLatest(lat, lon) {
+    const cb = document.getElementById("followLatest")
+    if (!cb || !cb.checked) return
+    if (this.currentView === "2d") {
+      if (window.panTo2D) window.panTo2D(lat, lon)
+    } else if (window.panToLatLon3D) {
+      window.panToLatLon3D(lat, lon)
     }
   }
 

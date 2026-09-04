@@ -14,10 +14,6 @@
 
   // ---- Button rendering ----
 
-  const FONT = "'SF Mono','JetBrains Mono',Menlo,Consolas,monospace"
-  const BTN_BASE =
-    "width:100%;padding:10px 16px;border-radius:4px;font-size:13px;font-weight:600;letter-spacing:0.3px;cursor:pointer;font-family:" + FONT + ";transition:background 0.15s,border-color 0.15s,color 0.15s;"
-
   function renderBtn() {
     const el = document.getElementById("liveCaptureBtn")
     if (!el) return
@@ -25,31 +21,31 @@
     // Web mode: this is a viewer. Live capture needs the desktop app.
     if (!IS_ELECTRON) {
       el.innerHTML = `
-        <a href="${DOWNLOAD_URL}" style="${BTN_BASE}display:block;box-sizing:border-box;text-align:center;background:#141815;color:#3fb950;border:1px solid #2ea043;text-decoration:none;" title="Download the desktop app for built-in live capture">Get Desktop App for Live Capture</a>`
+        <a href="${DOWNLOAD_URL}" class="live-control live-control-primary" title="Download the desktop app for built-in live capture">Get Desktop App for Live Capture</a>`
       return
     }
 
     if (status === "connecting") {
-      el.innerHTML = `<button disabled style="${BTN_BASE}background:#141815;color:#d29922;border:1px solid #4a3d18;cursor:wait;">Connecting...</button>`
+      el.innerHTML = '<button disabled class="live-control live-control-warning is-busy">Connecting...</button>'
       return
     }
 
     if (status === "live") {
       const warn = warningMsg
-        ? `<p style="color:#d29922;font-size:11px;margin-top:8px;text-align:center;font-family:${FONT};">${warningMsg}</p>`
+        ? `<p class="control-message control-message-warning">${warningMsg}</p>`
         : ""
-      el.innerHTML = `<button id="liveCaptureStop" style="${BTN_BASE}background:#141815;color:#f85149;border:1px solid #5a2a28;">Stop Live Capture</button>${warn}`
+      el.innerHTML = `<button id="liveCaptureStop" class="live-control live-control-danger">Stop Live Capture</button>${warn}`
       document.getElementById("liveCaptureStop").onclick = stopCapture
       return
     }
 
     if (status === "no_driver") {
       const installBtn = canInstallNpcap
-        ? `<button id="npcapInstall" style="${BTN_BASE}margin-top:8px;background:#141815;color:#d29922;border:1px solid #4a3d18;">Install Npcap</button>`
-        : `<a href="https://npcap.com/#download" target="_blank" style="display:block;margin-top:8px;text-align:center;color:#d29922;font-size:11px;font-family:${FONT};">Install Npcap from npcap.com</a>`
+        ? '<button id="npcapInstall" class="live-control live-control-warning control-spaced">Install Npcap</button>'
+        : '<a href="https://npcap.com/#download" target="_blank" class="control-link control-spaced">Install Npcap from npcap.com</a>'
       el.innerHTML = `
-        <button id="liveCaptureStart" style="${BTN_BASE}background:#141815;color:#d29922;border:1px solid #4a3d18;">Retry Live Capture</button>
-        <p style="color:#8b948d;font-size:11px;margin-top:8px;text-align:center;font-family:${FONT};">Npcap driver required for live capture.</p>
+        <button id="liveCaptureStart" class="live-control live-control-warning">Retry Live Capture</button>
+        <p class="control-message">Npcap driver required for live capture.</p>
         ${installBtn}`
       document.getElementById("liveCaptureStart").onclick = startCapture
       const ib = document.getElementById("npcapInstall")
@@ -59,15 +55,15 @@
 
     if (status === "error") {
       const msg = errorMsg
-        ? `<p style="color:#f85149;font-size:11px;margin-top:8px;text-align:center;font-family:${FONT};">${errorMsg}</p>`
+        ? `<p class="control-message control-message-danger">${errorMsg}</p>`
         : ""
-      el.innerHTML = `<button id="liveCaptureStart" style="${BTN_BASE}background:#141815;color:#f85149;border:1px solid #5a2a28;">Retry Live Capture</button>${msg}`
+      el.innerHTML = `<button id="liveCaptureStart" class="live-control live-control-danger">Retry Live Capture</button>${msg}`
       document.getElementById("liveCaptureStart").onclick = startCapture
       return
     }
 
     // idle
-    el.innerHTML = `<button id="liveCaptureStart" style="${BTN_BASE}background:#141815;color:#3fb950;border:1px solid #2ea043;">Start Live Capture</button>`
+    el.innerHTML = '<button id="liveCaptureStart" class="live-control live-control-primary">Start Live Capture</button>'
     document.getElementById("liveCaptureStart").onclick = startCapture
   }
 
@@ -216,6 +212,9 @@
     }]
 
     scheduleDisplay()
+
+    // Follow-cam: this IP belongs to the packet that just arrived.
+    if (window.viewportManager) window.viewportManager.panToLatest(geo.latitude, geo.longitude)
   }
 
   function getEnrichedIPData() {
