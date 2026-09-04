@@ -21,7 +21,7 @@ let globeContainer
 document.addEventListener("DOMContentLoaded", () => {
   const globeContainer = document.getElementById("globe")
 
-  globeContainer.style.height = "100vh" // Full viewport height
+  globeContainer.style.height = "100%" // Fill the globe-container (100vh desktop, 45vh mobile)
   globeContainer.style.width = "auto" // Make it square
   globeContainer.style.position = "relative"
   globeContainer.style.overflow = "visible" // Hide overflow

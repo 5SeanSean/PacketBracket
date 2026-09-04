@@ -1392,3 +1392,95 @@ body {
   border-color: rgba(100, 255, 218, 0.4);
   border-left-color: #64ffda;
 }
+
+/* Let the 3D canvas own touch gestures (drag/pinch) instead of the browser. */
+#globe canvas {
+  touch-action: none;
+}
+
+/* Mobile: stack the globe above a scrollable side panel. The desktop row
+   layout collapses on phones (calc(100vw - 100vh) goes negative in portrait). */
+@media (max-width: 768px) {
+  body {
+    font-size: 12px;
+  }
+
+  .main-container {
+    flex-direction: column;
+  }
+
+  .globe-container {
+    order: 1;
+    flex: none;
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    height: 45vh;
+    min-height: 45vh;
+  }
+
+  .side-panel-container {
+    order: 2;
+    flex: 1 1 auto;
+    width: 100%;
+    height: auto;
+    min-height: 0;
+    border-left: none;
+    border-top: 1px solid var(--border);
+  }
+
+  .viewport-controls {
+    top: 8px;
+    right: 8px;
+    gap: 4px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    max-width: calc(100% - 16px);
+  }
+
+  .follow-toggle,
+  .globe-btn,
+  .height-menu > summary {
+    padding: 5px 9px;
+    font-size: 11px;
+  }
+
+  #coordinateDisplay {
+    top: 8px;
+    left: 8px;
+    padding: 4px 8px;
+    font-size: 11px;
+  }
+
+  .capture-timeline {
+    left: 8px;
+    right: 8px;
+    bottom: 8px;
+    padding: 8px 10px 6px;
+  }
+
+  .timeline-bars {
+    height: 38px;
+  }
+
+  .upload-area-container {
+    padding: 12px;
+  }
+
+  .upload-area {
+    padding: 18px 14px;
+  }
+
+  .summary,
+  .packet-inspector-header {
+    padding: 12px;
+  }
+
+  .ip-list-container {
+    padding: 0 12px 12px;
+  }
+
+  .packet-inspector-meta {
+    grid-template-columns: 1fr;
+  }
+}

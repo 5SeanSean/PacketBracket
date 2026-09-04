@@ -713,6 +713,46 @@ function addMouseControls() {
     camera.position.z = Math.max(1.5, Math.min(10, camera.position.z))
   })
 
+  // Touch controls (mobile): one finger rotates, two fingers pinch-zoom.
+  const touchDistance = (touches) =>
+    Math.hypot(touches[0].clientX - touches[1].clientX, touches[0].clientY - touches[1].clientY)
+  let pinchDist = 0
+
+  container.addEventListener("touchstart", (event) => {
+    if (event.touches.length === 1) {
+      isMouseDown = true
+      mouseX = event.touches[0].clientX
+      mouseY = event.touches[0].clientY
+    } else if (event.touches.length === 2) {
+      isMouseDown = false
+      pinchDist = touchDistance(event.touches)
+    }
+  }, { passive: true })
+
+  container.addEventListener("touchmove", (event) => {
+    if (isMouseDown && event.touches.length === 1) {
+      const t = event.touches[0]
+      targetRotationY += (t.clientX - mouseX) * 0.01
+      targetRotationX += (t.clientY - mouseY) * 0.01
+      mouseX = t.clientX
+      mouseY = t.clientY
+      event.preventDefault()
+    } else if (event.touches.length === 2) {
+      const d = touchDistance(event.touches)
+      if (pinchDist) {
+        camera.position.z += (pinchDist - d) * 0.01
+        camera.position.z = Math.max(1.5, Math.min(10, camera.position.z))
+      }
+      pinchDist = d
+      event.preventDefault()
+    }
+  }, { passive: false })
+
+  container.addEventListener("touchend", () => {
+    isMouseDown = false
+    pinchDist = 0
+  })
+
   // RESTORED: Original smooth rotation function
   function updateRotation() {
     rotationX += (targetRotationX - rotationX) * 0.1
@@ -946,6 +986,8 @@ function setUserLocation(lat, lon, source = "gps") {
 
   userMarker = createUserMarker(latLonToVector3(lat, lon, 1.01))
   globeGroup.add(userMarker)
+
+  panToLatLon3D(lat, lon) // auto-center the globe on you when your location loads
 }
 
 // Rotate the globe so lat/lon faces front (same math selectMarker uses to
