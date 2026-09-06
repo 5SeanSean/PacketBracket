@@ -13,6 +13,10 @@ jobs:
     # Pinned to 2022 (VS 17): windows-latest ships VS 18, which the older
     # node-gyp@9.4.1 used by cap/electron-rebuild cannot detect.
     runs-on: windows-2022
+    # electron-builder needs write access to create the release + upload the
+    # auto-update feed (latest.yml) when publishing a tagged version.
+    permissions:
+      contents: write
 
     steps:
       - uses: actions/checkout@v4
@@ -36,20 +40,34 @@ jobs:
       - name: Rebuild native modules for Electron
         run: npm run rebuild
 
-      # --publish never: electron-builder only builds artifacts; the dedicated
-      # release job below attaches them, so we avoid double-publishing.
+      # Tag push -> electron-builder publishes the versioned release itself,
+      # including the auto-update metadata (latest.yml + .blockmap) that
+      # electron-updater reads. GH_TOKEN authorizes the upload.
+      - name: Build & publish tagged release
+        if: github.ref_type == 'tag'
+        run: npm run build:win -- --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Branch push -> build artifacts only; the rolling-release job below
+      # attaches them for manual download (no auto-update feed on rolling).
       - name: Build Windows app
+        if: github.ref_type != 'tag'
         run: npm run build:win -- --publish never
 
       - name: Upload artifacts
+        if: github.ref_type != 'tag'
         uses: actions/upload-artifact@v4
         with:
           name: PacketBracket-win
           path: dist-electron/*.exe
           if-no-files-found: error
 
+  # Rolling "Latest Build" release for branch pushes only. Tagged releases are
+  # published directly by electron-builder in the build job above.
   release:
     needs: build
+    if: github.ref_type != 'tag'
     runs-on: ubuntu-latest
     # action-gh-release needs write access to create the release + move tags;
     # the default GITHUB_TOKEN is read-only.
@@ -64,36 +82,24 @@ jobs:
           path: artifacts
           merge-multiple: true
 
-      # Version tags -> permanent release at that tag.
-      # Branch pushes  -> a single rolling release re-pointed to the new commit.
-      - name: Determine release target
-        id: rel
+      - name: Move rolling tag to this commit
         shell: bash
         run: |
-          if [[ "${{ github.ref_type }}" == "tag" ]]; then
-            echo "tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
-            echo "name=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
-            echo "notes=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "tag=rolling" >> "$GITHUB_OUTPUT"
-            echo "name=Latest Build" >> "$GITHUB_OUTPUT"
-            echo "notes=false" >> "$GITHUB_OUTPUT"
-            # Force-move the rolling tag to this commit so the release shows the
-            # right source (action-gh-release won't move an existing tag).
-            git tag -f rolling
-            git push -f origin rolling
-          fi
+          # Force-move the rolling tag to this commit so the release shows the
+          # right source (action-gh-release won't move an existing tag).
+          git tag -f rolling
+          git push -f origin rolling
 
-      - name: Publish release
+      - name: Publish rolling release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.rel.outputs.tag }}
-          name: ${{ steps.rel.outputs.name }}
+          tag_name: rolling
+          name: Latest Build
           target_commitish: ${{ github.sha }}
           files: artifacts/**
-          generate_release_notes: ${{ steps.rel.outputs.notes }}
+          generate_release_notes: false
           prerelease: false
-          make_latest: true
-          body: ${{ github.ref_type == 'tag' && '' || 'Automated build of the latest commit on liveupdate.' }}
+          make_latest: false
+          body: 'Automated build of the latest commit on liveupdate.'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

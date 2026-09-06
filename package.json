@@ -12,7 +12,8 @@
     "postinstall": "electron-rebuild -f -w cap || exit 0"
   },
   "dependencies": {
-    "cap": "^0.2.1"
+    "cap": "^0.2.1",
+    "electron-updater": "^6.8.9"
   },
   "devDependencies": {
     "electron": "^28.0.0",
@@ -38,22 +39,49 @@
       {
         "from": "electron",
         "to": ".",
-        "filter": ["npcap-installer.exe"]
+        "filter": [
+          "npcap-installer.exe"
+        ]
       }
     ],
     "win": {
       "target": [
-        { "target": "nsis", "arch": ["x64"] },
-        { "target": "portable", "arch": ["x64"] }
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
       ],
       "icon": "electron/icon.ico"
     },
     "mac": {
-      "target": [{ "target": "dmg", "arch": ["x64", "arm64"] }],
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
       "icon": "electron/icon.icns"
     },
     "linux": {
-      "target": [{ "target": "AppImage", "arch": ["x64"] }],
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
       "icon": "electron/icon.png"
     },
     "nsis": {
