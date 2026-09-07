@@ -25,12 +25,14 @@ function checkForUpdates() {
 // still launches without Npcap and can offer to install it.
 let Cap = null
 let decoders = null
+let capLoadError = null // real reason require('cap') failed, for diagnostics
 function loadCap() {
   if (Cap) return true
   try {
     ;({ Cap, decoders } = require('cap'))
     return true
   } catch (e) {
+    capLoadError = (e && e.message) || String(e)
     return false
   }
 }
@@ -317,10 +319,12 @@ async function startCapture(iface) {
   if (capturing) return
 
   if (!loadCap()) {
+    console.warn('[capture] cap module failed to load:', capLoadError)
     sendToRenderer('capture-error', {
       message: 'Npcap is required for live capture',
       driverMissing: true,
       canInstall: !!npcapInstallerPath(),
+      detail: capLoadError,
     })
     return
   }

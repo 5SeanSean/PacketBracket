@@ -73,8 +73,10 @@ body {
   order: 1;
   overflow: visible;
   min-height: 100vh;
-  min-width: 50vw;
-  max-width: 70vh;
+  /* ponytail: globe just fills whatever the side panel leaves. The old
+     min-width:50vw + max-width:70vh only summed to 100vw at one aspect
+     ratio; every other window size left a black gap beside the panel. */
+  min-width: 0;
 }
 
 #globe-background {
@@ -211,7 +213,9 @@ body {
 
 /* Side panel */
 .side-panel-container {
-  width: calc(100vw - 100vh);
+  /* Fixed, clamped width; globe (flex:1) takes the rest so the row always
+     fills 100vw. Was calc(100vw - 100vh), which broke at most window sizes. */
+  width: clamp(340px, 32vw, 520px);
   height: 100vh;
   background: var(--panel);
   border-left: 1px solid var(--border);

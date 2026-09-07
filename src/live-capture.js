@@ -58,7 +58,7 @@
         : '<a href="https://npcap.com/#download" target="_blank" class="control-link control-spaced">Install Npcap from npcap.com</a>'
       el.innerHTML = `
         <button id="liveCaptureStart" class="live-control live-control-warning">Retry Live Capture</button>
-        <p class="control-message">Npcap driver required for live capture.</p>
+        <p class="control-message">Npcap not detected. If it's already installed, reinstall it with <strong>"WinPcap API-compatible Mode"</strong> checked, then run PacketBracket as Administrator.</p>
         ${installBtn}`
       document.getElementById("liveCaptureStart").onclick = startCapture
       const ib = document.getElementById("npcapInstall")
