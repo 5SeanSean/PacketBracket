@@ -22,7 +22,7 @@
   "build": {
     "appId": "com.packetbracket.app",
     "productName": "PacketBracket",
-    "copyright": "Copyright © 2024",
+    "copyright": "Copyright © 2026 5SeanSean",
     "directories": {
       "output": "dist-electron"
     },
@@ -33,13 +33,6 @@
       "!src/styles.css",
       "src/styles.css",
       "node_modules/cap/**/*"
-    ],
-    "extraResources": [
-      {
-        "from": "electron",
-        "to": ".",
-        "filter": ["npcap-installer.exe"]
-      }
     ],
     "win": {
       "target": [

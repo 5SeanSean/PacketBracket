@@ -3,7 +3,7 @@ name: Build & Release
 on:
   push:
     branches:
-      - liveupdate       # every commit updates the rolling "Latest Build" release
+      - v1               # every commit updates the rolling "Latest Build" release
     tags:
       - 'v*'             # version tags cut a permanent versioned release
   workflow_dispatch:
@@ -94,6 +94,6 @@ jobs:
           generate_release_notes: ${{ steps.rel.outputs.notes }}
           prerelease: false
           make_latest: true
-          body: ${{ github.ref_type == 'tag' && '' || 'Automated build of the latest commit on liveupdate.' }}
+          body: ${{ github.ref_type == 'tag' && '' || 'Automated build of the latest commit on v1.' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
