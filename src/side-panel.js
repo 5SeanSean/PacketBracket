@@ -109,7 +109,13 @@ window.displayIPDetails = (ipData, ipPackets, file, summary, allPackets = []) =>
   const ipDetails = document.getElementById("ipDetails")
   if (!ipDetails) return
 
-  closePacketInspector()
+  // Keep an open packet inspector alive across live-capture re-renders. Only
+  // close it if the IP it's showing has dropped out of the data set.
+  const inspector = document.getElementById("packetInspector")
+  const inspectedIP = inspector && !inspector.hidden ? inspector.dataset.ip : null
+  if (inspectedIP && !ipData.some((d) => d.ip === inspectedIP)) {
+    closePacketInspector()
+  }
   ipDetails.innerHTML = ""
 
   // Sort IPs by threat level first, then by packet count
@@ -165,6 +171,9 @@ window.displayIPDetails = (ipData, ipPackets, file, summary, allPackets = []) =>
             </h3>
             <div class="ip-card-top">
                 <div class="location-info">
+                    ${ipInfo.sni ? `<div><strong>Service:</strong> ${escapePacketHTML(ipInfo.sni)}</div>` : ""}
+                    ${ipInfo.rdns ? `<div><strong>Host:</strong> ${escapePacketHTML(ipInfo.rdns)}</div>` : ""}
+                    ${ipInfo.process ? `<div><strong>Process:</strong> ${escapePacketHTML(ipInfo.process)}${ipInfo.pid ? ` (${ipInfo.pid})` : ""}</div>` : ""}
                     <div><strong>Coordinates:</strong> ${ipInfo.latitude.toFixed(4)}°, ${ipInfo.longitude.toFixed(4)}°</div>
                     <div><strong>Location:</strong> ${ipInfo.city || "Unknown"}, ${ipInfo.region || "Unknown"}, ${ipInfo.country || "Unknown"}</div>
                     <div><strong>ISP:</strong> ${ipInfo.isp || "Unknown"}</div>
@@ -251,6 +260,7 @@ function openPacketInspector(ipInfo, indexedPackets, trigger) {
   if (!inspector) return
 
   _packetInspectorReturnFocus = trigger
+  inspector.dataset.ip = ipInfo.ip
   inspector.innerHTML = `
     <div class="packet-inspector-header">
       <button type="button" class="packet-inspector-back" aria-label="Return to globe">← Back to globe</button>
@@ -296,6 +306,7 @@ function closePacketInspector() {
   if (!inspector || inspector.hidden) return
   inspector.hidden = true
   inspector.innerHTML = ""
+  delete inspector.dataset.ip
   _packetInspectorReturnFocus?.focus()
   _packetInspectorReturnFocus = null
 }
@@ -385,7 +396,7 @@ function packetRows(packet, number) {
   const destination = ipv4 ? formatEndpoint(ipv4.destinationIP, transport?.destinationPort) : "—"
   const protocol = ipv4?.protocolName || packet.ethernet?.etherTypeName || "Unknown"
   const flags = ipv4?.tcp?.flags?.join(", ") || ""
-  const info = flags || transportInfo(ipv4) || packet.type
+  const info = packet.sni ? `TLS: ${packet.sni}` : (flags || transportInfo(ipv4) || packet.type)
   const time = packet.timestamp instanceof Date && !Number.isNaN(packet.timestamp.valueOf())
     ? packet.timestamp.toLocaleTimeString([], { hour12: false, fractionalSecondDigits: 3 })
     : "—"
@@ -413,6 +424,8 @@ function packetDetails(packet, number) {
       ["Number", number],
       ["Capture", packet.sourceFile || "Live capture"],
       ["Block type", packet.type],
+      ["TLS SNI", packet.sni],
+      ["Process", packet.process ? `${packet.process}${packet.pid ? ` (${packet.pid})` : ""}` : undefined],
       ["Captured length", byteLabel(packet.capturedLength)],
       ["Original length", byteLabel(packet.originalLength)],
       ["Timestamp", packet.timestamp instanceof Date ? packet.timestamp.toISOString() : "Unavailable"],

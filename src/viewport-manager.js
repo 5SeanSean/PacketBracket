@@ -215,6 +215,13 @@ class ViewportManager {
   panToLatest(lat, lon) {
     const cb = document.getElementById("followLatest")
     if (!cb || !cb.checked) return
+    // Never pan to coords that don't correspond to a real pin: null/NaN,
+    // out-of-range, or the 0,0 null-island (off the African coast).
+    lat = Number(lat)
+    lon = Number(lon)
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return
+    if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return
+    if (lat === 0 && lon === 0) return
     if (this.currentView === "2d") {
       if (window.panTo2D) window.panTo2D(lat, lon)
     } else if (window.panToLatLon3D) {

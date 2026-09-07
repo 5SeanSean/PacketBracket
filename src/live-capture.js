@@ -7,6 +7,19 @@
 
   const IS_ELECTRON = typeof window.electronAPI !== "undefined"
 
+  // A geo result only maps to a real pin if it has finite, in-range coords that
+  // aren't the 0,0 null-island (African coast). Null/undefined/NaN or 0,0 means
+  // the lookup had no real location — never pin or pan to it.
+  function hasRealCoords(geo) {
+    if (!geo) return false
+    const lat = Number(geo.latitude)
+    const lon = Number(geo.longitude)
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return false
+    if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return false
+    if (lat === 0 && lon === 0) return false
+    return true
+  }
+
   let status = "idle" // idle | connecting | live | no_driver | error
   let canInstallNpcap = false // set from capture-error payload
   let warningMsg = "" // non-fatal note shown during live capture (e.g. admin)
@@ -121,8 +134,81 @@
 
   // ---- Packet handling ----
   const ipPackets = new Map()
+  // Every live packet in the same shape the pcap parser emits, so the side panel
+  // and packet inspector (which filter this list by IP) work identically to a
+  // loaded capture instead of getting an empty array.
+  const livePackets = []
+  // Per-public-IP metadata gathered from the capture: TLS SNI, reverse DNS, and
+  // the local process talking to it. Keyed by the public peer IP.
+  const ipMeta = new Map()
+  const rdnsPending = new Set()
   const enrichPending = new Set()
+
+  function recordMeta(evt) {
+    const publicIP = evt.src_private ? evt.dst : evt.src
+    if (!publicIP) return
+    let meta = ipMeta.get(publicIP)
+    if (!meta) { meta = { sni: null, rdns: null, process: null, pid: null, ports: new Set() }; ipMeta.set(publicIP, meta) }
+    if (evt.sni) meta.sni = evt.sni // first/last seen SNI names the service
+    if (evt.rdns) meta.rdns = evt.rdns
+    if (evt.process) { meta.process = evt.process; meta.pid = evt.pid }
+    const port = evt.src_private ? evt.dstPort : evt.srcPort
+    if (port) meta.ports.add(port)
+
+    // rDNS resolves async in main; if we don't have it yet, ask once.
+    if (!meta.rdns && !rdnsPending.has(publicIP) && window.electronAPI.reverseDns) {
+      rdnsPending.add(publicIP)
+      window.electronAPI.reverseDns(publicIP).then((host) => {
+        if (host) meta.rdns = host
+      }).catch(() => {}).finally(() => rdnsPending.delete(publicIP))
+    }
+  }
+
+  function metaFields(ip) {
+    const m = ipMeta.get(ip)
+    if (!m) return {}
+    return { sni: m.sni, rdns: m.rdns, process: m.process, pid: m.pid }
+  }
   let _displayTimer = null
+
+  const PROTO_NUM = { ICMP: 1, TCP: 6, UDP: 17 }
+
+  // Build a minimal parser-compatible packet from a live capture event. The
+  // inspector's IPv4 detail section reads numeric fields eagerly (.toString), so
+  // unknown ones default to 0 rather than being left undefined.
+  function toParserPacket(evt) {
+    const { src, dst, protocol, size, timestamp, srcPort, dstPort, sni, process: proc, pid } = evt
+    const transport = { sourcePort: srcPort, destinationPort: dstPort }
+    const ipv4 = {
+      sourceIP: src,
+      destinationIP: dst,
+      protocolName: protocol,
+      protocol: PROTO_NUM[protocol] ?? 0,
+      headerLength: 0,
+      totalLength: size,
+      ttl: 0,
+      identification: 0,
+      headerChecksum: 0,
+    }
+    // Attach ports under the matching transport key so the inspector renders
+    // endpoints as ip:port and its TCP/UDP detail section populates.
+    if (protocol === "TCP") {
+      ipv4.tcp = { ...transport, error: false, flags: [], sequenceNumber: 0, acknowledgmentNumber: 0, headerLength: 0, windowSize: 0, checksum: 0 }
+    } else if (protocol === "UDP") {
+      ipv4.udp = { ...transport, error: false, length: size, checksum: 0 }
+    }
+    return {
+      type: "Live packet",
+      sourceFile: "Live capture",
+      timestamp: new Date(timestamp),
+      capturedLength: size,
+      originalLength: size,
+      sni: sni || null,
+      process: proc || null,
+      pid: pid || null,
+      ipv4,
+    }
+  }
 
   function scheduleDisplay() {
     if (_displayTimer) return
@@ -135,13 +221,21 @@
           totalPackets: countTotalPackets(),
           ipv4Packets: data.length,
           uniqueIPs: data.length,
-        })
+        }, livePackets)
       }
     }, 800)
   }
 
   function handlePacket(evt) {
     const { src, dst, protocol, size, timestamp, src_private, dst_private } = evt
+
+    // Record the packet for the inspector list (bounded so a long capture can't
+    // grow memory without limit).
+    livePackets.push(toParserPacket(evt))
+    if (livePackets.length > 50000) livePackets.shift()
+
+    // Capture SNI / rDNS / process metadata for the public peer.
+    recordMeta(evt)
 
     const publicIPs = []
     if (!src_private) publicIPs.push({ ip: src, dir: "src" })
@@ -161,7 +255,7 @@
     // If already enriched and valid, just refresh the display
     const cache = window._liveCaptureParser && window._liveCaptureParser.ipCache
     if (cache && cache[ip] && !cache[ip].error && !cache[ip].isPrivate) {
-      pushToGlobe(ip, cache[ip])
+      if (hasRealCoords(cache[ip])) pushToGlobe(ip, cache[ip])
       return
     }
 
@@ -182,6 +276,7 @@
     parser.fetchGeoIntelligence(ip).then(function (geo) {
       enrichPending.delete(ip)
       if (!geo || geo.error || geo.isPrivate || geo.isSpecial || geo.isMulticast) return
+      if (!hasRealCoords(geo)) return
       parser.ipCache[ip] = geo
       parser.saveIpCache()
       pushToGlobe(ip, geo)
@@ -209,6 +304,7 @@
       asn: geo.asn,
       asnNumber: geo.asnNumber,
       mapUrl: geo.mapUrl,
+      ...metaFields(ip),
     }]
 
     scheduleDisplay()
@@ -223,6 +319,7 @@
     ipPackets.forEach(function (_, ip) {
       const geo = cache[ip]
       if (!geo || geo.error || geo.isPrivate || geo.isSpecial || geo.isMulticast) return
+      if (!hasRealCoords(geo)) return
       result.push({
         ip,
         city: geo.city,
@@ -238,6 +335,7 @@
         asn: geo.asn,
         asnNumber: geo.asnNumber,
         mapUrl: geo.mapUrl,
+        ...metaFields(ip),
       })
     })
     return result

@@ -2,6 +2,23 @@ const { app, BrowserWindow, ipcMain, protocol, shell } = require('electron')
 const path = require('path')
 const fs = require('fs')
 
+// Keep installed apps in sync with new releases without runtime-loading the
+// website: electron-updater checks GitHub Releases (configured under `build.publish`
+// in package.json), downloads a new version in the background, and installs it on
+// the next launch. Loaded lazily and guarded so a dev run (no update feed) or a
+// missing dependency never blocks startup.
+function checkForUpdates() {
+  if (!app.isPackaged) return // dev runs have no published feed
+  try {
+    const { autoUpdater } = require('electron-updater')
+    autoUpdater.autoDownload = true
+    autoUpdater.on('error', (err) => console.warn('[updater]', err && err.message))
+    autoUpdater.checkForUpdatesAndNotify().catch((e) => console.warn('[updater]', e && e.message))
+  } catch (e) {
+    console.warn('[updater] unavailable:', e && e.message)
+  }
+}
+
 // `cap` is a native module that depends on Npcap's wpcap.dll at runtime. If
 // Npcap isn't installed, require('cap') throws "specified module could not be
 // found". Load it lazily (only when capture starts) and guard it, so the app
@@ -68,11 +85,13 @@ function createWindow() {
     },
   })
 
+  // Always load the bundled copy (app://). The app is self-contained: it runs
+  // offline, its code can't be swapped at runtime (the preload exposes native
+  // capture IPC, so remote code would be a security risk), and each release is
+  // versioned. Staying current with the website is handled by auto-update
+  // (checkForUpdates below) — both the site and the app build from the same src/.
   mainWindow.loadURL('app://./index.html')
   mainWindow.setMenu(null)
-
-  // In dev (npm start), open DevTools so the console/logs are visible.
-  if (!app.isPackaged) mainWindow.webContents.openDevTools({ mode: 'detach' })
 
   mainWindow.on('closed', () => {
     stopCapture()
@@ -89,6 +108,7 @@ app.whenReady().then(() => {
   })
 
   createWindow()
+  checkForUpdates()
 })
 
 // Always release the capture handle before quitting (Cmd+Q, taskbar close, etc.)
@@ -121,6 +141,144 @@ function isPrivateIP(ip) {
 function getProtocolName(proto) {
   const map = { 1: 'ICMP', 6: 'TCP', 17: 'UDP' }
   return map[proto] || 'OTHER'
+}
+
+// ---- TLS SNI extraction ----
+// Pull the server_name from a TLS ClientHello sitting in a TCP payload. This
+// names the actual service (e.g. discord.media) rather than the IP's hosting
+// org. Returns null for anything that isn't a ClientHello. Fully bounds-checked:
+// malformed/truncated packets just yield null instead of throwing.
+function extractSNI(buf, start, end) {
+  try {
+    let p = start
+    if (end - p < 5) return null
+    if (buf[p] !== 0x16) return null // not a TLS handshake record
+    p += 5 // skip record header (type, version[2], length[2])
+    if (end - p < 4) return null
+    if (buf[p] !== 0x01) return null // not a ClientHello
+    p += 4 // handshake type + length[3]
+    p += 2 // client version
+    p += 32 // random
+    if (p >= end) return null
+    const sidLen = buf[p]; p += 1 + sidLen // session id
+    if (p + 2 > end) return null
+    const csLen = buf.readUInt16BE(p); p += 2 + csLen // cipher suites
+    if (p + 1 > end) return null
+    const compLen = buf[p]; p += 1 + compLen // compression methods
+    if (p + 2 > end) return null
+    let extEnd = p + 2 + buf.readUInt16BE(p); p += 2 // extensions block
+    if (extEnd > end) extEnd = end
+    while (p + 4 <= extEnd) {
+      const type = buf.readUInt16BE(p)
+      const len = buf.readUInt16BE(p + 2)
+      p += 4
+      if (type === 0x0000) { // server_name extension
+        // server_name_list: list_len[2], name_type[1], name_len[2], name
+        if (p + 5 > extEnd) return null
+        const nameLen = buf.readUInt16BE(p + 3)
+        const nameStart = p + 5
+        if (nameStart + nameLen > extEnd) return null
+        return buf.toString('ascii', nameStart, nameStart + nameLen) || null
+      }
+      p += len
+    }
+    return null
+  } catch (_) {
+    return null
+  }
+}
+
+// ---- Reverse DNS ----
+const dns = require('dns').promises
+const rdnsCache = new Map() // ip -> hostname|null (null = looked up, none found)
+
+async function reverseDns(ip) {
+  if (rdnsCache.has(ip)) return rdnsCache.get(ip)
+  rdnsCache.set(ip, null) // mark in-flight so we don't spam the resolver
+  try {
+    const names = await dns.reverse(ip)
+    const host = (names && names[0]) || null
+    rdnsCache.set(ip, host)
+    return host
+  } catch (_) {
+    rdnsCache.set(ip, null)
+    return null
+  }
+}
+
+// ---- Process attribution ----
+// Map a local port to the owning process by polling the OS connection table
+// while capturing. netstat/lsof are already present on their platforms, so this
+// needs no extra dependency.
+const { execFile } = require('child_process')
+let portProcess = new Map() // localPort -> { pid, name }
+let procTimer = null
+
+function execTextFile(cmd, args) {
+  return new Promise((resolve) => {
+    execFile(cmd, args, { windowsHide: true, maxBuffer: 8 * 1024 * 1024 }, (err, stdout) => {
+      resolve(err ? '' : String(stdout))
+    })
+  })
+}
+
+async function refreshProcessTableWin() {
+  const [netstat, tasklist] = await Promise.all([
+    execTextFile('netstat', ['-ano', '-p', 'tcp']).then((tcp) =>
+      Promise.all([Promise.resolve(tcp), execTextFile('netstat', ['-ano', '-p', 'udp'])]).then(([a, b]) => a + b)),
+    execTextFile('tasklist', ['/fo', 'csv', '/nh']),
+  ])
+
+  // pid -> image name from tasklist CSV ("name","pid",...)
+  const pidName = new Map()
+  tasklist.split(/\r?\n/).forEach((line) => {
+    const m = line.match(/^"([^"]+)","(\d+)"/)
+    if (m) pidName.set(m[2], m[1].replace(/\.exe$/i, ''))
+  })
+
+  const map = new Map()
+  netstat.split(/\r?\n/).forEach((line) => {
+    // e.g.  TCP    192.168.1.5:54321   1.2.3.4:443   ESTABLISHED   1234
+    const m = line.match(/^\s*(TCP|UDP)\s+\S+:(\d+)\s+\S+\s+(?:\S+\s+)?(\d+)\s*$/)
+    if (!m) return
+    const port = Number(m[2])
+    const pid = m[3]
+    map.set(port, { pid: Number(pid), name: pidName.get(pid) || `PID ${pid}` })
+  })
+  portProcess = map
+}
+
+async function refreshProcessTableUnix() {
+  // lsof: -n no DNS, -P no port names, -i IP sockets. Columns: COMMAND PID ... NAME
+  const out = await execTextFile('lsof', ['-nP', '-i'])
+  const map = new Map()
+  out.split(/\r?\n/).forEach((line) => {
+    const cols = line.split(/\s+/)
+    if (cols.length < 9 || cols[0] === 'COMMAND') return
+    const name = cols[0]
+    const pid = Number(cols[1])
+    // NAME like 192.168.1.5:54321->1.2.3.4:443 or *:5353
+    const local = (cols[8] || '').split('->')[0]
+    const port = Number(local.split(':').pop())
+    if (port) map.set(port, { pid, name })
+  })
+  portProcess = map
+}
+
+function refreshProcessTable() {
+  const fn = process.platform === 'win32' ? refreshProcessTableWin : refreshProcessTableUnix
+  fn().catch((e) => console.warn('[proc]', e && e.message))
+}
+
+function startProcessPolling() {
+  refreshProcessTable()
+  if (procTimer) clearInterval(procTimer)
+  procTimer = setInterval(refreshProcessTable, 3000)
+}
+
+function stopProcessPolling() {
+  if (procTimer) { clearInterval(procTimer); procTimer = null }
+  portProcess = new Map()
 }
 
 // Npcap restricts capture to Administrators by default, so a non-elevated
@@ -193,6 +351,7 @@ async function startCapture(iface) {
     const linkType = capture.open(device, '', 10 * 1024 * 1024, buffer)
     capture.setMinBytes && capture.setMinBytes(0)
     capturing = true
+    startProcessPolling()
     console.log('[capture] opened device=%s linkType=%s', device, linkType)
 
     let seen = 0
@@ -228,16 +387,44 @@ async function startCapture(iface) {
         // Skip traffic where both sides are private
         if (srcPrivate && dstPrivate) return
 
+        // Transport ports + TLS SNI from the payload (TCP only for SNI).
+        let srcPort, dstPort, sni = null
+        const proto = ip.info.protocol
+        if (proto === 6) { // TCP
+          const tcp = decoders.TCP(buffer, ip.offset)
+          srcPort = tcp.info.srcport
+          dstPort = tcp.info.dstport
+          sni = extractSNI(buffer, tcp.offset, eth.offset + ip.info.totallen)
+        } else if (proto === 17) { // UDP
+          const udp = decoders.UDP(buffer, ip.offset)
+          srcPort = udp.info.srcport
+          dstPort = udp.info.dstport
+        }
+
+        // The local (private) side owns the local port used for process lookup.
+        const localPort = srcPrivate ? srcPort : dstPort
+        const proc = (localPort && portProcess.get(localPort)) || null
+
+        // Best-effort reverse DNS for the public peer (async, cached).
+        const publicIP = srcPrivate ? dst : src
+        if (!rdnsCache.has(publicIP)) reverseDns(publicIP)
+
         forwarded++
         sendToRenderer('packet', {
           type: 'packet',
           src,
           dst,
-          protocol: getProtocolName(ip.info.protocol),
+          protocol: getProtocolName(proto),
           size: nbytes,
           timestamp: new Date().toISOString(),
           src_private: srcPrivate,
           dst_private: dstPrivate,
+          srcPort,
+          dstPort,
+          sni,
+          rdns: rdnsCache.get(publicIP) || null,
+          process: proc ? proc.name : null,
+          pid: proc ? proc.pid : null,
         })
       } catch (_) {}
     })
@@ -268,6 +455,7 @@ function stopCapture() {
     capture = null
   }
   capturing = false
+  stopProcessPolling()
   sendToRenderer('capture-status', 'idle')
 }
 
@@ -319,3 +507,4 @@ async function geoFetch(ip) {
 
 ipcMain.handle('geo-lookup', (_, ip) => geoFetch(ip))
 ipcMain.handle('geo-self', () => geoFetch(null))
+ipcMain.handle('reverse-dns', (_, ip) => reverseDns(ip))
